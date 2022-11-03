@@ -17,6 +17,7 @@ CREATE TABLE games_list(
   game_rate decimal(4, 2) NOT NULL,
   game_description TEXT NOT NULL,
   best_seller boolean NOT NULL,
+  game_image varchar(40) DEFAULT NULL,
   FOREIGN KEY(productor) REFERENCES games_productors(id),
   FOREIGN KEY(gender) REFERENCES games_gender(id)
    )ENGINE=InnoDB DEFAULT CHARSET='utf8';
@@ -27,7 +28,5 @@ CREATE TABLE users(
   age int(11) NOT NULL,
   sex varchar(20) NOT NULL,
   username varchar(100) NOT NULL,
-  user_pswd varchar(100) NOT NULL
+  user_pswd varchar(60) NOT NULL
   )ENGINE='InnoDB' DEFAULT CHARSET='utf8';
-
-    
