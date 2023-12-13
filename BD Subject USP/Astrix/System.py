@@ -1,6 +1,6 @@
 import os 
 import psycopg2
-import prettytable as pt
+from prettytable import PrettyTable
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -38,12 +38,12 @@ def check_null(cursor, table_name):
 def cria_busca_edita_deleta_administrador(connection, cursor):
     try:
         if not check_null(cursor, "Administrador"):
-            print("Escolha a operação:")
-            print("1. Criar Administrador")
-            print("2. Buscar Administrador")
-            print("3. Editar Administrador")
-            print("4. Deletar Administrador")
-            print("5. Voltar")
+            tabela.field_names = ["Opção", "Descrição"]
+            tabela.add_row(["1", "Criar Administrador"])
+            tabela.add_row(["2", "Buscar Administrador"])
+            tabela.add_row(["3", "Editar Administrador"])
+            tabela.add_row(["4", "Deletar Administrador"])
+            tabela.add_row(["5", "Voltar"])
 
             opcao = input("Escolha uma opção: ")
 
@@ -152,12 +152,12 @@ def cria_busca_edita_deleta_empregado(connection, cursor):
     try:
         if not check_null(cursor, "Administrador"):
 
-            print("Escolha a operação:")
-            print("1. Buscar Empregado")
-            print("2. Deletar Empregado")
-            print("3. Editar Empregado")
-            print("4. Criar Empregado")
-            print("5. Voltar")
+            tabela.field_names = ["Opção", "Descrição"]
+            tabela.add_row(["1", "Buscar Empregado"])
+            tabela.add_row(["2", "Deletar Empregado"])
+            tabela.add_row(["3", "Editar Empregado"])
+            tabela.add_row(["4", "Criar Empregado"])
+            tabela.add_row(["5", "Voltar"])
 
             opcao = input("Escolha uma opção: ")
 
@@ -260,12 +260,12 @@ def cria_busca_edita_deleta_empregado(connection, cursor):
 
 def cria_busca_edita_deleta_piloto(connection, cursor):
     try:
-        print("Escolha a operação:")
-        print("1. Buscar Piloto")
-        print("2. Deletar Piloto")
-        print("3. Editar Piloto")
-        print("4. Criar Piloto")
-        print("5. Voltar")
+        tabela.field_names = ["Opção", "Descrição"]
+        tabela.add_row(["1", "Buscar Piloto"])
+        tabela.add_row(["2", "Deletar Piloto"])
+        tabela.add_row(["3", "Editar Piloto"])
+        tabela.add_row(["4", "Criar Piloto"])
+        tabela.add_row(["5", "Voltar"])
 
         opcao = input("Escolha uma opção: ")
 
@@ -377,12 +377,12 @@ def cria_busca_edita_deleta_piloto(connection, cursor):
 
 def criar_busca_edita_administrador_cf(connection, cursor):
     try:
-        print("Escolha a operação:")
-        print("1. Buscar CF")
-        print("2. Deletar CF")
-        print("3. Editar CF")
-        print("4. Criar CF")
-        print("5. Voltar")
+        tabela.field_names = ["Opção", "Descrição"]
+        tabela.add_row(["1", "Buscar CF"])
+        tabela.add_row(["2", "Deletar CF"])
+        tabela.add_row(["3", "Editar CF"])
+        tabela.add_row(["4", "Criar CF"])
+        tabela.add_row(["5", "Voltar"])
 
         opcao = input("Escolha uma opção: ")
 
@@ -490,12 +490,12 @@ def criar_busca_edita_administrador_cf(connection, cursor):
 def criar_busca_edita_administrador_cj(connection, cursor):
     try:
         if not check_null(cursor, "c_juridico"):
-            print("Escolha a operação:")
-            print("1. Buscar CJ")
-            print("2. Deletar CJ")
-            print("3. Editar CJ")
-            print("4. Criar CJ")
-            print("5. Voltar")
+            tabela.field_names = ["Opção", "Descrição"]
+            tabela.add_row(["1", "Buscar CJ"])
+            tabela.add_row(["2", "Deletar CJ"])
+            tabela.add_row(["3", "Editar CJ"])
+            tabela.add_row(["4", "Criar CJ"])
+            tabela.add_row(["5", "Voltar"])
 
             opcao = input("Escolha uma opção: ")
 
@@ -599,12 +599,12 @@ def criar_busca_edita_administrador_cj(connection, cursor):
 
 def criar_busca_edita_administrador_nave(connection, cursor):
     try:
-        print("Escolha a operação:")
-        print("1. Buscar Espaçonave")
-        print("2. Deletar Espaçonave")
-        print("3. Editar Espaçonave")
-        print("4. Criar Espaçonave")
-        print("5. Voltar")
+        tabela.field_names = ["Opção", "Descrição"]
+        tabela.add_row(["1", "Buscar Espaçonave"])
+        tabela.add_row(["2", "Deletar Espaçonave"])
+        tabela.add_row(["3", "Editar Espaçonave"])
+        tabela.add_row(["4", "Criar Espaçonave"])
+        tabela.add_row(["5", "Voltar"])
 
         opcao = input("Escolha uma opção: ")
 
@@ -692,12 +692,12 @@ def criar_busca_edita_administrador_nave(connection, cursor):
 
 def criar_busca_edita_administrador_planeta(connection, cursor):
     try:
-        print("Escolha a operação:")
-        print("1. Buscar Planeta")
-        print("2. Deletar Planeta")
-        print("3. Editar Planeta")
-        print("4. Registrar Planeta")
-        print("5. Voltar")
+        tabela.field_names = ["Opção", "Descrição"]
+        tabela.add_row(["1", "Buscar Planeta"])
+        tabela.add_row(["2", "Deletar Planeta"])
+        tabela.add_row(["3", "Editar Planeta"])
+        tabela.add_row(["4", "Registrar Planeta"])
+        tabela.add_row(["5", "Voltar"])
 
         opcao = input("Escolha uma opção: ")
 
@@ -996,12 +996,12 @@ def cosmonauta_fisico_existe(cursor, cf_codigo):
            
 def criar_buscar_editar_cf(connection, cursor):
     try:
-        print("Escolha a operação:")
-        print("1. Criar Cosmonauta Físico")
-        print("2. Buscar Cosmonauta Físico")
-        print("3. Editar Cosmonauta Físico")
-        print("4. Deletar Cosmonauta Físico")
-        print("5. Voltar")
+        tabela.field_names = ["Opção", "Descrição"]
+        tabela.add_row(["1", "Criar Cosmonauta Físico"])
+        tabela.add_row(["2", "Buscar Cosmonauta Físico"])
+        tabela.add_row(["3", "Editar Cosmonauta Físico"])
+        tabela.add_row(["4", "Deletar Cosmonauta Físico"])
+        tabela.add_row(["5", "Voltar"])
 
         opcao = input("Escolha uma opção: ")
 
@@ -1207,50 +1207,53 @@ def consultar_dados_transporte_valor_destino(cursor):
         if not check_null(cursor, "c_fisico"):
             ccf_codigo = int(input("Digite o código do Cosmonauta Físico: "))
             
-        origem = input("Digite o nome do planeta de origem: ")
-        destino = input("Digite o nome do planeta de destino: ")
+            origem = input("Digite o nome do planeta de origem: ")
+            destino = input("Digite o nome do planeta de destino: ")
 
-        cursor.execute("""
-            SELECT t.*, v.Origem, v.Destino,
-                   CASE WHEN e.Tipo = 'TRANSPORTE' THEN e.Modelo
-                        WHEN e.Tipo = 'CARGA' THEN 'N/A'
-                   END AS Tipo_Espaconave,
-                   CASE WHEN e.Tipo = 'TRANSPORTE' THEN et.Qnt_Assentos
-                        WHEN e.Tipo = 'CARGA' THEN c.Capacidade
-                   END AS Capacidade,
-                   CASE WHEN e.Tipo = 'TRANSPORTE' THEN calcular_valor_transporte(v.Transporte)
-                        WHEN e.Tipo = 'CARGA' THEN calcular_valor_carga(v.Transporte)
-                   END AS Valor_Viagem
-            FROM Transporte t
-            JOIN Viagem v ON t.Cod_Transporte = v.Transporte
-            JOIN Espaconave e ON t.Carga = e.Nro_Serie OR t.C_Juridico = e.Nro_Serie
-            LEFT JOIN E_TRANSPORTE et ON e.Nro_Serie = et.Espaconave
-            LEFT JOIN Carga c ON e.Nro_Serie = c.Espaconave
-            JOIN C_Fisico cf ON v.C_Fisico = cf.CCF
-            WHERE v.Origem = %s AND v.Destino = %s AND cf.CCF = %s
-        """, (origem, destino, ccf_codigo))
+            cursor.execute("""
+                SELECT t.*, v.Origem, v.Destino,
+                    CASE WHEN e.Tipo = 'TRANSPORTE' THEN e.Modelo
+                            WHEN e.Tipo = 'CARGA' THEN 'N/A'
+                    END AS Tipo_Espaconave,
+                    CASE WHEN e.Tipo = 'TRANSPORTE' THEN et.Qnt_Assentos
+                            WHEN e.Tipo = 'CARGA' THEN c.Capacidade
+                    END AS Capacidade,
+                    CASE WHEN e.Tipo = 'TRANSPORTE' THEN calcular_valor_transporte(v.Transporte)
+                            WHEN e.Tipo = 'CARGA' THEN calcular_valor_carga(v.Transporte)
+                    END AS Valor_Viagem
+                FROM Transporte t
+                JOIN Viagem v ON t.Cod_Transporte = v.Transporte
+                JOIN Espaconave e ON t.Carga = e.Nro_Serie OR t.C_Juridico = e.Nro_Serie
+                LEFT JOIN E_TRANSPORTE et ON e.Nro_Serie = et.Espaconave
+                LEFT JOIN Carga c ON e.Nro_Serie = c.Espaconave
+                JOIN C_Fisico cf ON v.C_Fisico = cf.CCF
+                WHERE v.Origem = %s AND v.Destino = %s AND cf.CCF = %s
+            """, (origem, destino, ccf_codigo))
 
-        resultados = cursor.fetchall()
+            resultados = cursor.fetchall()
 
-        if resultados:
-            for resultado in resultados:
-                print(resultado)
+            if resultados:
+                for resultado in resultados:
+                    print(resultado)
+            else:
+                print("Sem resultados para essa busca!\n")
         else:
-            print("Tabela Está vazia. Aceso não autorizado!\n")
+            print("Tabela de Cosmonauta Físico está vazia!")
 
     except Exception as e:
         print(f"Erro ao executar a consulta: {e}")
 
 def menu_cf(connection, cursor):
 
-    print("1. Criar/Buscar/Deletar/Atualizar Cosmonauta Físico")
-    print("2. Buscar Planeta")
-    print("3. Editar Viagens da Nave A330")
-    print("4. Deletar Viagens da Nave A770")
-    print("5. Consultar dados do piloto")
-    print("6. Consultar dados das naves")
-    print("7. Consultar Valor da viagem")
-    print("8. Voltar")
+    tabela.field_names = ["Opção", "Descrição"]
+    tabela.add_row(["1", "Criar/Buscar/Deletar/Atualizar Cosmonauta Físico"])
+    tabela.add_row(["2", "Buscar Planeta"])
+    tabela.add_row(["3", "Editar Viagens da Nave A330"])
+    tabela.add_row(["4", "Deletar Viagens da Nave A770"])
+    tabela.add_row(["5", "Consultar dados do piloto"])
+    tabela.add_row(["6", "Consultar dados das naves"])
+    tabela.add_row(["7", "Consultar Valor da viagem"])
+    tabela.add_row(["8", "Voltar"])
     opcao = input("Escolha a operação:")
     ccf_codigo = int(input("Digite o código do Cosmonauta Físico: "))
 
@@ -1285,12 +1288,12 @@ def cosmonauta_juridico_existe(cursor, ccj_codigo):
 
 def criar_buscar_editar_cj(connection, cursor):
     try:
-        print("Escolha a operação:")
-        print("1. Criar Cosmonauta Jurídico")
-        print("2. Buscar Cosmonauta Jurídico")
-        print("3. Editar Cosmonauta Jurídico")
-        print("4. Deletar Cosmonauta Jurídico")
-        print("5. Voltar")
+        tabela.field_names = ["Opção", "Descrição"]
+        tabela.add_row(["1", "Criar Cosmonauta Jurídico"])
+        tabela.add_row(["2", "Buscar Cosmonauta Jurídico"])
+        tabela.add_row(["3", "Editar Cosmonauta Jurídico"])
+        tabela.add_row(["4", "Deletar Cosmonauta Jurídico"])
+        tabela.add_row(["5", "Voltar"])
 
         opcao = input("Escolha uma opção: ")
 
@@ -1565,17 +1568,18 @@ def menu_cj(connection, cursor):
     else:
         print("Opção inválida\n")
 
+
 connection = conectar()
 if connection is not None:
     print("Conectado ao banco de dados!")
 
 while True:
-    print("Escolha o tipo de cargo:")
-    print("1. Cosmonauta Físico (CF)")
-    print("2. Cosmonauta Jurídico (CJ)")
-    print("3. Piloto")
-    print("4. Administrador")
-    print("5. Sair")
+    tabela.field_names(["Escolha", "Cargo"])
+    tabela.add_row(["1", "Cosmonauta Físico (CF)"])
+    tabela.add_row(["2", "Cosmonauta Jurídico (CJ)"])
+    tabela.add_row(["3", "Piloto"])
+    tabela.add_row(["4", "Administrador"])
+    tabela.add_row(["5", "Sair"])
 
     opcao = input("Escolha uma opção: ")
     if connection:
