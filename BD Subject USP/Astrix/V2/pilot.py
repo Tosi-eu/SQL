@@ -134,6 +134,7 @@ def menu_piloto(connection, cursor):
     tabela.add_row(["5", "Consultar Naves"])
     tabela.add_row(["6", "Consultar planetas"])
     tabela.add_row(["7", "Voltar"])
+    print(tabela)
 
     cp_piloto = input("Digite o código do Piloto: ")
     if not piloto_existe(cursor, cp_piloto):

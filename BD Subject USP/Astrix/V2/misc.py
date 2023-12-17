@@ -16,7 +16,6 @@ def conectar():
             port=getenv("PORT"),
             database=getenv("DB")
         )
-        print("Conexão bem-sucedida!\n")
         return connection
     except psycopg2.Error as psy:
         print(f"Erro ao conectar ao banco de dados: {psy}")
@@ -46,7 +45,7 @@ def viagem_existe(cursor, origem, destino, ccf):
 
 def piloto_existe(cursor, ccp):
     try:
-        cursor.execute("SELECT COUNT(*) FROM piloto WHERE ccp = %s", (ccp,))
+        cursor.execute("SELECT COUNT(*) FROM piloto WHERE cp = %s", (ccp,))
         count = cursor.fetchone()[0]
         return count > 0
     except Exception as e:
