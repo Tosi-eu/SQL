@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Inserir Dados</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <script async src="{{ url_for('static', filename='script.js') }}"></script>
+</head>
+<body>
+    <header>
+        <h2><b>Inserção de dados</b></h2>
+        <nav>
+            <ul>
+                <li><a href="/">Página Principal</a></li>
+                <li><a href="/candidaturas">Listar Candidaturas</a></li>
+                <li><a href="/candidaturas/eleitos">Relatório de Candidatos Eleitos</a></li>
+                <li><a href="/candidatos/ficha-limpa">Listar Candidatos Ficha Limpa</a></li>
+                <li><a href="/doacoes">Registrar doação</a></li>
+                <li><a href="/delete">Remover Entidade</a></li>
+                <li><a href="/inserir">Inserir dados</a></li>
+            </ul>
+        </nav>
+    </header>
+    <h2><b>Inserção de dados</b></h2>
+    <div class="container">
+        <form method="POST" action="/inserir">
+            <label for="entity">Entidade:</label>
+            <select id="entity" name="entity" onchange="showFields()">
+                <option value="">Selecione</option>
+                <option value="pleito">Pleito</option>
+                <option value="partido">Partido</option>
+                <option value="programaPartido">Programa de partido</option>
+                <option value="candidatura">Candidatura</option>
+                <option value="individuo">Individuo</option>
+                <option value="cargo">Cargo</option>
+                <option value="empresa">Empresa</option>
+                <option value="equipeapoio">Equipe de Apoio</option>
+                <option value="processojudicial">Processo Judicial</option>
+            </select><br><br>
+            
+            <!-- Campos para Pleito -->
+            <div id="pleito-fields" class="entity-fields" style="display:none;">
+                <label for="Cod_Pleito">ID Pleito:</label>
+                <input type="text" id="Cod_Pleito" name="Cod_Pleito">
+                <label for="qtdVotos">Quantidade de Votos:</label>
+                <input type="text" id="qtdVotos" name="qtdVotos">
+            </div>
+
+            <!-- Campos para Partido -->
+            <div id="partido-fields" class="entity-fields" style="display:none;">
+                <label for="cod_partido">ID do partido:</label>
+                <input type="text" id="cod_partido" name="cod_partido">
+                <label for="nome">Nome do partido:</label>
+                <input type="text" id="nome" name="nome">
+                <label for="cod_programa">Código do Programa:</label>
+                <input type="text" id="cod_programa" name="cod_programa">
+            </div>
+
+            <!-- Campos para Programas de Partido -->
+            <div id="programaPartido-fields" class="entity-fields" style="display:none;">
+                <label for="cod_programaPartido">ID do programa:</label>
+                <input type="text" id="cod_programaPartido" name="cod_programaPartido">
+                <label for="programa">Programa do partido:</label>
+                <input type="text" id="programa" name="programa">
+            </div>
+                         
+            <!-- Campos para Candidatura -->
+            <div id="candidatura-fields" class="entity-fields" style="display:none;">
+                <label for="cod_candidatura">Código Candidatura:</label>
+                <input type="text" id="cod_candidatura" name="cod_candidatura">
+                <label for="cod_individuo">Código indivíduo:</label>
+                <input type="text" id="cod_individuo" name="cod_individuo">
+                <label for="cod_Partido">Código do partido:</label>
+                <input type="text" id="cod_Partido" name="cod_Partido">
+                <label for="cod_cargo">Código Cargo:</label>
+                <input type="text" id="cod_cargo" name="cod_cargo">
+                <label for="ano">Ano:</label>
+                <input type="text" id="ano" name="ano">
+                <label for="pleito">Pleito N°:</label>
+                <input type="text" id="pleito" name="pleito">
+                <label for="cod_candidatura_vice">Código Candidatura Vice:</label>
+                <input type="text" id="cod_candidatura_vice" name="cod_candidatura_vice">
+                <label for="eleito">Eleito:</label>
+                <select id="eleito" name="eleito">
+                    <option value="SIM">SIM</option>
+                    <option value="NÃO">NÃO</option>
+                </select>
+                <label for="total_doacoes">Total de Doações:</label>
+                <input type="text" id="total_doacoes" name="total_doacoes">
+            </div>
+      
+            <!-- Campos para Individuo -->
+            <div id="individuo-fields" class="entity-fields" style="display:none;">
+                <label for="cpf">CPF:</label>
+                <input type="text" id="cpf" name="cpf">
+                <label for="nome_ind">Nome:</label>
+                <input type="text" id="nome_ind" name="nome_ind">
+                <label for="estado_ficha">Estado da Ficha:</label>
+                <input type="checkbox" id="estado_ficha" name="estado_ficha">
+                <label for="partido">Código da equipe:</label>
+                <input type="text" id="partido" name="partido">
+            </div>
+            
+            <div id="cargo-fields" class="entity-fields" style="display:none;">
+                <label for="cod_Cargo">Código do Cargo:</label>
+                <input type="number" id="cod_Cargo" name="cod_Cargo">
+                
+                <label for="descricao">Descrição do Cargo:</label>
+                <input type="text" id="descricao" name="descricao" maxlength="50">
+                
+                <label for="localidade">Localização do Cargo:</label>
+                <select id="localidade" name="localidade">
+                    <option value="">Selecione</option>
+                    <option value="MUNICIPAL">Municipal</option>
+                    <option value="ESTADUAL">Estadual</option>
+                    <option value="FEDERAL">Federal</option>
+                </select>
+                
+                <label for="qtd_Eleitos">Quantidade de Eleitos:</label>
+                <input type="number" id="qtd_Eleitos" name="qtd_Eleitos" min="1">
+                
+                <label for="pais">País:</label>
+                <input type="text" id="pais" name="pais" value="BRASIL">
+                
+                <label for="estado">Estado:</label>
+                <input type="text" id="estado" name="estado" maxlength="50">
+                
+                <label for="cidade">Cidade:</label>
+                <input type="text" id="cidade" name="cidade" maxlength="50">
+            </div>
+            
+            <!-- Campos para Equipe de Apoio -->
+            <div id="equipeapoio-fields" class="entity-fields" style="display:none;">
+                <label for="cod_Equipe">Código Equipe:</label>
+                <input type="text" id="cod_equipe" name="cod_equipe">
+                <label for="nomeEquipe">Nome da Equipe:</label>
+                <input type="text" id="nomeEquipe" name="nomeEquipe">
+            </div>
+
+            <!-- Campos para Equipe de Apoio -->
+            <div id="empresa-fields" class="entity-fields" style="display:none;">
+                <label for="cnpj">CNPJ:</label>
+                <input type="text" id="cnpj" name="cnpj">
+                <label for="nomeEmpresa">Nome da Empresa:</label>
+                <input type="text" id="nomeEmpresa" name="nomeEmpresa">
+            </div>
+    
+                <!-- Campos para Processo Judicial -->
+            <div id="processojudicial-fields" class="entity-fields" style="display:none;">
+                <label for="codigo_processo">Código Processo:</label>
+                <input type="text" id="codigo_processo" name="codigo_processo">
+                <label for="codigo_individuo">Código do Indivíduo:</label>
+                <input type="text" id="codigo_individuo" name="codigo_individuo">
+                <label for="data_Inicio">Data de Início:</label>
+                <input type="date" id="data_Inicio" name="data_Inicio">
+                <label for="julgado">Julgado:</label>
+                <input type="checkbox" id="julgado" name="julgado">
+                <label for="data_termino">Data de Término:</label>
+                <input type="date" id="data_termino" name="data_termino">
+                <label for="procedente">Procedente:</label>
+                <input type="checkbox" id="procedente" name="procedente">
+            </div><br>
+            
+            <button type="submit">Inserir Dados</button>
+        </form><br>
+
+        {% if message %}
+        <p>{{ message }}</p>
+        {% endif %}
+    </div>
+    <script async>
+            document.getElementById('entity').addEventListener('change', function() {
+            var entityIdInput = document.getElementById('cpf');
+            var entityIdInput2 = document.getElementById('cnpj');
+            var entityIdInput3 = document.getElementById('cod_individuo');
+            entityIdInput.oninput = null;
+            if (this.value === 'individuo') {
+                // Formatar CPF
+                entityIdInput.placeholder = "Digite o CPF (XXX.XXX.XXX-XX)";
+                entityIdInput.oninput = function() {
+                    formatarCPF(this);
+                };
+            } else if (this.value === 'empresa') {
+                // Formatar CNPJ
+                entityIdInput2.placeholder = "Digite o CNPJ (XX.XXX.XXX/XXXX-XX)";
+                entityIdInput2.oninput = function() {
+                    formatarCNPJ(this);
+                };
+            }else if (this.value === 'candidatura') {
+                entityIdInput3.placeholder = "Digite o CPF (XXX.XXX.XXX-XX)";
+                entityIdInput3.oninput = function() {
+                    formatarCPF(this);
+                };
+            }
+        });
+    </script>
+    <footer>
+        <p id="footer">&copy; 2024 Sistema Eleitoral. Todos os direitos reservados.</p>
+    </footer>
+</body>
+</html>

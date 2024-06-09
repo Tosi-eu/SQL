@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Remover Entidade</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <link href='https://fonts.googleapis.com/css?family=Poppins' rel='stylesheet'>
+    <script async src="{{ url_for('static', filename='script.js') }}"></script>
+</head>
+<body>
+    <header>
+        <h1>Remover Entidade</h1>
+        <nav>
+            <ul>
+                <li><a href="/">Página Principal</a></li>
+                <li><a href="/candidaturas">Listar Candidaturas</a></li>
+                <li><a href="/candidaturas/eleitos">Relatório de Candidatos Eleitos</a></li>
+                <li><a href="/candidatos/ficha-limpa">Listar Candidatos Ficha Limpa</a></li>
+                <li><a href="/doacoes">Registrar doação</a></li>
+                <li><a href="/delete">Remover Entidade</a></li>
+                <li><a href="/inserir">Inserir dados</a></li>
+            </ul>
+        </nav>
+    </header>
+    <h2><b>Remover dados do sistema! CUIDADO:</b></h2>
+    <div class="container delete-form">
+        <form method="POST" action="/delete">
+            <label for="entity">Entidade:</label>
+            <select id="entity" name="entity">
+                <option value="pleito">Pleito</option>
+                <option value="candidatura">Candidatura</option>
+                <option value="individuo">Individuo</option>
+                <option value="cargo">Cargo</option>
+                <option value="equipeapoio">Equipe de Apoio</option>
+                <option value="doadoresF">Doador Físico</option>
+                <option value="doadoresJ">Doador Jurídico</option>
+                <option value="processojudicial">Processo Judicial</option>
+                <option value="empresa">Empresa</option>
+            </select><br><br>
+            <label for="id">ID:</label>
+            <input type="text" id="id" name="id"><br><br>
+            <button type="submit">Remover</button>
+        </form><br>
+        {% if message %}
+        <p>{{ message }}</p>
+        {% endif %}
+    </div>
+    <footer>
+        <p id="footer">&copy; 2024 Sistema Eleitoral. Todos os direitos reservados.</p>
+    </footer>
+</body>
+</html>
