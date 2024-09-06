@@ -20,6 +20,9 @@ def conexao_bd(db_host, db_user, psswd, db):
 def receber_material(conn, cursor):
     try:
         tipo_material = input(f"{AMARELO}[INPUT]{RESET} Digite o tipo de material ({AMARELO}F{RESET}io/{AMARELO}C{RESET}orante): ").strip().upper()[0]
+        if tipo_material[0] not in ['F', 'C']:
+            print( f"\n{VERMELHO}[ERRO]{RESET} Tipo de material não especificado" )
+            return
         codigo_barra = _gerar_codigo_barra()
         fornecedor_id = int(input(f"{AMARELO}[INPUT]{RESET} Digite o ID do fornecedor: "))
         
@@ -178,8 +181,8 @@ def registrar_producao(conn, cursor):
         print(f"Corante ID: {ordem[4]} | Código de Barras Corante: {ordem[5]}")
         print(f"Status: {ordem[6]}")
 
-        confirmacao = input(f"{AMARELO}[INPUT]{RESET} Deseja colocar essa ordem em produção? (s/n): ").lower()
-        if confirmacao != 's':
+        confirmacao = input(f"{AMARELO}[INPUT]{RESET} Deseja colocar essa ordem em produção? ({AMARELO}S{RESET}/{AMARELO}n{RESET}): ").upper()[0]
+        if confirmacao != 'S':
             print(f"{VERMELHO}[CANCELADO]{RESET} A produção foi cancelada pelo usuário.")
             return
 
@@ -260,13 +263,13 @@ def gerar_relatorios(cursor):
 
 def cadastrar_tipo_material(conn, cursor):
     try:
-        tipo_material = input(f"{AMARELO}[INPUT]{RESET} Digite o tipo de material que deseja cadastrar (fio/corante): ").strip().lower()
+        tipo_material = input(f"{AMARELO}[INPUT]{RESET} Digite o tipo de material que deseja cadastrar ({AMARELO}f{RESET}io/{AMARELO}c{RESET}orante): ").strip().upper()[0]
         
-        if tipo_material == 'fio':
+        if tipo_material == 'F':
             descricao = input(f"{AMARELO}[INPUT]{RESET} Digite a descrição do tipo de fio: ").strip()
             cor = input(f"{AMARELO}[INPUT]{RESET} Digite a cor do fio: ").strip()
             cursor.execute("INSERT INTO TipoFio (descricao, cor) VALUES (%s, %s)", (descricao, cor))
-        elif tipo_material == 'corante':
+        elif tipo_material == 'C':
             descricao = input(f"{AMARELO}[INPUT]{RESET} Digite a descrição do tipo de corante: ").strip()
             cor = input(f"{AMARELO}[INPUT]{RESET} Digite a cor do corante: ").strip()
             cursor.execute("INSERT INTO TipoCorante (descricao, cor) VALUES (%s, %s)", (descricao, cor))
