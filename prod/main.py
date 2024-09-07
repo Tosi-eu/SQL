@@ -16,7 +16,6 @@ def conexao_bd(db_host, db_user, psswd, db):
         password=psswd,
         database=db
     )
-
 def receber_material(conn, cursor):
     try:
         tipo_material = input(f"{AMARELO}[INPUT]{RESET} Digite o tipo de material ({AMARELO}F{RESET}io/{AMARELO}C{RESET}orante): ").strip().upper()[0]
@@ -24,43 +23,69 @@ def receber_material(conn, cursor):
             print(f"\n{VERMELHO}[ERRO]{RESET} Tipo de material não especificado")
             return
         fornecedor_id = int(input(f"{AMARELO}[INPUT]{RESET} Digite o ID do fornecedor: "))
-        
-        if tipo_material == 'F':
-            tipo_fio_id = int(input(f"{AMARELO}[INPUT]{RESET} Digite o ID do tipo de fio: "))
-            metragem_input = float(input(f"{AMARELO}[INPUT]{RESET} Digite a metragem do fio: "))
-            codigo_barra = _gerar_codigo_barra_fio(tipo_fio_id, metragem_input)
 
-            metragem_extraida = extrair_metragem_codigo_barra(codigo_barra)
-            if metragem_extraida is not None:
-                resposta = input(f"{AMARELO}[CONFIRMAR]{RESET} O código de barras contém a metragem {metragem_extraida}. Isso confere com o valor inserido ({metragem_input})? (S/N): ").strip().upper()
-                if resposta.upper() == 'N':
-                    print(f"{VERMELHO}[ERRO]{RESET} Metragem divergente!")
-                    return
-            
+        if tipo_material == 'F':
+            codigo_barra = input(f"{AMARELO}[INPUT]{RESET} Digite o código de barras do fio: ").strip()
+            tipo_fio_id, metragem_extraida = extrair_dados_codigo_barra(codigo_barra) 
+
+            #print(f"{AMARELO}[INFO]{RESET} Código de barras contém ID do fio: {tipo_fio_id} e metragem: {metragem_extraida}")
+
+            if tipo_fio_id is None or metragem_extraida is None:
+                print(f"{VERMELHO}[ERRO]{RESET} Código de barras inválido!")
+                return
+
+            resposta = input(f"{AMARELO}[CONFIRMAR]{RESET} A metragem é de {metragem_extraida}. Confirma? (S/N): ").strip().upper()
+            if resposta == 'N':
+                print(f"{VERMELHO}[ERRO]{RESET} Metragem não confirmada!")
+                return
+
             cursor.execute("INSERT INTO Fio (codigo_barra, tipo_fio_id, metragem, em_estoque, fornecedor_id) VALUES (%s, %s, %s, TRUE, %s)", 
-                           (codigo_barra, tipo_fio_id, metragem_input, fornecedor_id))
-            
-            if not conferir_fio(conn, cursor, codigo_barra, metragem_input, fornecedor_id):
+                           (codigo_barra, tipo_fio_id, metragem_extraida, fornecedor_id))
+
+            if not conferir_fio(conn, cursor, codigo_barra, metragem_extraida, fornecedor_id):
                 return f"{VERMELHO}[ERRO]{RESET} Material não confere com o enviado pelo fornecedor"
+
             conn.commit()
 
         elif tipo_material == 'C':
-            tipo_corante_id = int(input(f"{AMARELO}[INPUT]{RESET} Digite o ID do tipo de corante: "))
-            litros = float(input(f"{AMARELO}[INPUT]{RESET} Digite a quantidade de galões de corante: "))
-            codigo_barra = _gerar_codigo_barra_corante(tipo_corante_id, litros)
-            cursor.execute("INSERT INTO Corante (codigo_barra, tipo_corante_id, litros, em_estoque, fornecedor_id) VALUES (%s, %s, %s, TRUE, %s)", 
-                           (codigo_barra, tipo_corante_id, litros * 4, fornecedor_id))
-            if not conferir_corante(conn, cursor, codigo_barra, litros * 4, fornecedor_id):
-                return f"{VERMELHO}[ERRO]{RESET} Material não confere com o enviado pelo fornecedor"
-            conn.commit()
+              codigo_barra = input(f"{AMARELO}[INPUT]{RESET} Digite o código de barras do corante: ").strip()
+              tipo_corante_id, metragem_extraida = extrair_dados_codigo_barra(codigo_barra) 
 
+                #print(f"{AMARELO}[INFO]{RESET} Código de barras contém ID do fio: {tipo_fio_id} e metragem: {metragem_extraida}")
+
+              if tipo_corante_id is None or metragem_extraida is None:
+                    print(f"{VERMELHO}[ERRO]{RESET} Código de barras inválido!")
+                    return
+
+              resposta = input(f"{AMARELO}[CONFIRMAR]{RESET} O total de litros é {metragem_extraida*4}. Confirma? (S/N): ").strip().upper()[0]
+              if resposta == 'N':
+                    print(f"{VERMELHO}[ERRO]{RESET} Quantidade não confirmada!")
+                    return
+
+              cursor.execute("INSERT INTO CORANTE (codigo_barra, tipo_corante_id, fornecedor_id, litros, em_estoque) VALUES (%s, %s, %s, %s, TRUE)", 
+                            (codigo_barra, tipo_corante_id, fornecedor_id, metragem_extraida))
+
+              if not conferir_corante(conn, cursor, codigo_barra, metragem_extraida, fornecedor_id):
+                    return f"{VERMELHO}[ERRO]{RESET} Material não confere com o enviado pelo fornecedor"
+
+              conn.commit()
         else:
             print(f"{VERMELHO}[ERRO]{RESET} Tipo de material inválido!")
             return
+
         print(f"{VERDE}[SUCESSO]{RESET} Material recebido com sucesso!")
     except Exception as e:
         conn.rollback()
         print(f"{VERMELHO}[ERRO]{RESET} Ao receber material: {e}")
+
+def extrair_dados_codigo_barra(codigo_barra):
+    try:
+        partes = codigo_barra.split('-')
+        tipo_fio_id = int(partes[1])
+        metragem = int(partes[2])
+        return tipo_fio_id, metragem
+    except (IndexError, ValueError):
+        return None, None
 
 def conferir_fio(conn, cursor, codigo_barra, metragem_informada, fornecedor_id):
     try:
@@ -114,18 +139,6 @@ def conferir_corante(conn, cursor, codigo_barra, litros_informados, fornecedor_i
     except Exception as e:
         print(f"\n{VERMELHO}[ERRO]{RESET} Ao conferir corante: {e}")
         return False
-
-def _gerar_codigo_barra_fio(tipo_fio_id, metragem):
-    return f"FIO-{tipo_fio_id}-{int(metragem)}"
-
-def _gerar_codigo_barra_corante(tipo_corante_id, litros):
-    return f"COR-{tipo_corante_id}-{ceil(litros * 4)}"
-
-def extrair_metragem_codigo_barra(codigo_barra):
-    partes = codigo_barra.split('-')
-    if partes[0] == "FIO":
-        return int(partes[2])
-    return None
 
 def gerar_codigo_barra_ordem_producao(fio_id, metros, corante_id, litros):
     return str(f"PROD-{fio_id}-{metros}-{corante_id}-{ceil(litros)}")
@@ -205,6 +218,10 @@ def registrar_producao(conn, cursor):
         print(f"Fio ID: {ordem[3]} | Código de Barras Fio: {ordem[4]}")
         print(f"Corante ID: {ordem[5]} | Código de Barras Corante: {ordem[6]}")
         print(f"Status: {ordem[7]}")
+
+        if ordem[7] == 'Concluída':
+            print(f"\n{VERMELHO}[ERRO]{RESET} Produto já foi processado!")
+            return
 
         confirmacao = input(f"{AMARELO}[INPUT]{RESET} Deseja finalizar essa ordem de produção? ({AMARELO}S{RESET}/{AMARELO}n{RESET}): ").upper()[0]
         if confirmacao != 'S':
