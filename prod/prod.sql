@@ -28,8 +28,8 @@ CREATE TABLE Fio (
     fornecedor_id INT,
     metragem DECIMAL(10, 0),
     em_estoque BOOLEAN DEFAULT FALSE,
-    FOREIGN KEY (tipo_fio_id) REFERENCES TipoFio(id),
-    FOREIGN KEY (fornecedor_id) REFERENCES Fornecedor(id),
+    FOREIGN KEY (tipo_fio_id) REFERENCES TipoFio(id) ON DELETE CASCADE,
+    FOREIGN KEY (fornecedor_id) REFERENCES Fornecedor(id) ON DELETE SET NULL,
     CONSTRAINT METRAGEM_CK CHECK(METRAGEM > 0 AND METRAGEM <= 100000)
 
 );
@@ -41,8 +41,8 @@ CREATE TABLE Corante (
     fornecedor_id INT,
     litros DECIMAL(10, 0),
     em_estoque BOOLEAN DEFAULT FALSE,
-    FOREIGN KEY (tipo_corante_id) REFERENCES TipoCorante(id),
-    FOREIGN KEY (fornecedor_id) REFERENCES Fornecedor(id),
+    FOREIGN KEY (tipo_corante_id) REFERENCES TipoCorante(id) ON DELETE CASCADE,
+    FOREIGN KEY (fornecedor_id) REFERENCES Fornecedor(id) ON DELETE SET NULL,
     CONSTRAINT CORANTE_CK CHECK(LITROS > 0)
 );
 
@@ -55,8 +55,8 @@ CREATE TABLE OrdemProducao (
     data_inicio TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     data_fim TIMESTAMP NOT NULL,
     status VARCHAR(50) NOT NULL DEFAULT 'Em processamento',
-    FOREIGN KEY (fio_id) REFERENCES Fio(id),
-    FOREIGN KEY (corante_id) REFERENCES Corante(id),
+    FOREIGN KEY (fio_id) REFERENCES Fio(id) ON DELETE CASCADE,
+    FOREIGN KEY (corante_id) REFERENCES Corante(id) ON DELETE CASCADE,
     CONSTRAINT METROS_CK CHECK(METROS_PRODUZIDOS >= 0 AND METROS_PRODUZIDOS <= 100)
 );
 
@@ -67,9 +67,9 @@ CREATE TABLE ProdutoFinal (
     tipo_corante_id INT,
     tipo_fio_id INT,
     CONSTRAINT PROD_FIN_UN UNIQUE(ordem_producao_id, tipo_corante_id, tipo_fio_id),
-    FOREIGN KEY (ordem_producao_id) REFERENCES OrdemProducao(id),
-    FOREIGN KEY (tipo_corante_id) REFERENCES TipoCorante(id),
-    FOREIGN KEY (tipo_fio_id) REFERENCES TipoFio(id)
+    FOREIGN KEY (ordem_producao_id) REFERENCES OrdemProducao(id) ON DELETE CASCADE,
+    FOREIGN KEY (tipo_corante_id) REFERENCES TipoCorante(id) ON DELETE CASCADE,
+    FOREIGN KEY (tipo_fio_id) REFERENCES TipoFio(id) ON DELETE CASCADE
 );
 
 INSERT INTO Fornecedor (nome, contato, cep) VALUES 
