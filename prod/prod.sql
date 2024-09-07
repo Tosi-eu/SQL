@@ -23,7 +23,7 @@ CREATE TABLE TipoCorante (
 
 CREATE TABLE Fio (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    codigo_barra VARCHAR(12) UNIQUE NOT NULL,
+    codigo_barra CHAR(12) UNIQUE NOT NULL,
     tipo_fio_id INT,
     fornecedor_id INT,
     metragem DECIMAL(10, 0),
@@ -36,19 +36,19 @@ CREATE TABLE Fio (
 
 CREATE TABLE Corante (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    codigo_barra VARCHAR(12) UNIQUE NOT NULL,
+    codigo_barra CHAR(12) UNIQUE NOT NULL,
     tipo_corante_id INT,
     fornecedor_id INT,
     litros DECIMAL(10, 0),
     em_estoque BOOLEAN DEFAULT FALSE,
     FOREIGN KEY (tipo_corante_id) REFERENCES TipoCorante(id) ON DELETE CASCADE,
     FOREIGN KEY (fornecedor_id) REFERENCES Fornecedor(id) ON DELETE SET NULL,
-    CONSTRAINT CORANTE_CK CHECK(LITROS > 0)
+    CONSTRAINT CORANTE_CK CHECK(LITROS > 0 AND LITROS <= 50000)
 );
 
 CREATE TABLE OrdemProducao (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    codigo_barra VARCHAR(12) UNIQUE NOT NULL,
+    codigo_barra CHAR(12) UNIQUE NOT NULL,
     metros_produzidos DECIMAL(10, 0),
     fio_id INT,
     corante_id INT,
@@ -62,7 +62,7 @@ CREATE TABLE OrdemProducao (
 
 CREATE TABLE ProdutoFinal (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    codigo_barra VARCHAR(12) UNIQUE NOT NULL,
+    codigo_barra CHAR(12) UNIQUE NOT NULL,
     ordem_producao_id INT,
     tipo_corante_id INT,
     tipo_fio_id INT,
