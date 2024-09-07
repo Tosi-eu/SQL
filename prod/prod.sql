@@ -23,10 +23,10 @@ CREATE TABLE TipoCorante (
 
 CREATE TABLE Fio (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    codigo_barra CHAR(12) UNIQUE NOT NULL,
+    codigo_barra VARCHAR(30) UNIQUE NOT NULL,
     tipo_fio_id INT,
     fornecedor_id INT,
-    metragem DECIMAL(11, 2),
+    metragem DECIMAL(10, 0),
     em_estoque BOOLEAN DEFAULT FALSE,
     FOREIGN KEY (tipo_fio_id) REFERENCES TipoFio(id),
     FOREIGN KEY (fornecedor_id) REFERENCES Fornecedor(id),
@@ -36,10 +36,10 @@ CREATE TABLE Fio (
 
 CREATE TABLE Corante (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    codigo_barra CHAR(12) UNIQUE NOT NULL,
+    codigo_barra VARCHAR(30) UNIQUE NOT NULL,
     tipo_corante_id INT,
     fornecedor_id INT,
-    litros DECIMAL(11, 2),
+    litros DECIMAL(10, 0),
     em_estoque BOOLEAN DEFAULT FALSE,
     FOREIGN KEY (tipo_corante_id) REFERENCES TipoCorante(id),
     FOREIGN KEY (fornecedor_id) REFERENCES Fornecedor(id),
@@ -48,8 +48,8 @@ CREATE TABLE Corante (
 
 CREATE TABLE OrdemProducao (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    codigo_barra CHAR(12) UNIQUE NOT NULL,
-    metros_produzidos DECIMAL(11, 2),
+    codigo_barra VARCHAR(30) UNIQUE NOT NULL,
+    metros_produzidos DECIMAL(10, 0),
     fio_id INT,
     corante_id INT,
     data_inicio TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -62,7 +62,7 @@ CREATE TABLE OrdemProducao (
 
 CREATE TABLE ProdutoFinal (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    codigo_barra CHAR(12) UNIQUE NOT NULL,
+    codigo_barra VARCHAR(30) UNIQUE NOT NULL,
     ordem_producao_id INT,
     tipo_corante_id INT,
     tipo_fio_id INT,
@@ -90,27 +90,4 @@ INSERT INTO TipoCorante (cor, descricao) VALUES
 ('Verde', 'Corante verde para tingimento de lã'),
 ('Vermelho', 'Corante vermelho para tingimento de roupas esportivas');
 
-INSERT INTO Fio (codigo_barra, tipo_fio_id, fornecedor_id, metragem, em_estoque) VALUES 
-('123456789012', 1, 1, 10000.50, TRUE),
-('234567890123', 2, 2, 5000.25, TRUE),
-('345678901234', 3, 3, 7500.00, FALSE),
-('456789012345', 4, 4, 6000.75, TRUE);
-
-INSERT INTO Corante (codigo_barra, tipo_corante_id, fornecedor_id, litros, em_estoque) VALUES 
-('567890123456', 1, 1, 250.00, TRUE),
-('678901234567', 2, 2, 300.50, TRUE),
-('789012345678', 3, 3, 150.25, FALSE),
-('890123456789', 4, 4, 400.00, TRUE);
-
-INSERT INTO OrdemProducao (codigo_barra, metros_produzidos, fio_id, corante_id, data_fim) VALUES 
-('901234567890', 50.75, 1, 1, '2024-09-06 12:00:00'),
-('012345678901', 70.25, 2, 2, '2024-09-06 14:00:00'),
-('123456789012', 40.50, 3, 3, '2024-09-07 10:00:00'),
-('234567890123', 90.00, 4, 4, '2024-09-07 16:00:00');
-
-INSERT INTO ProdutoFinal (codigo_barra, ordem_producao_id, tipo_corante_id, tipo_fio_id) VALUES 
-('345678901234', 1, 1, 1),
-('456789012345', 2, 2, 2),
-('567890123456', 3, 3, 3),
-('678901234567', 4, 4, 4);
 
