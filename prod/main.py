@@ -80,12 +80,15 @@ def receber_material(conn, cursor):
 
 def extrair_dados_codigo_barra(codigo_barra):
     try:
-        partes = codigo_barra.split('-')
-        tipo_fio_id = int(partes[1])
-        metragem = int(partes[2])
+        codigo_barra = codigo_barra.strip()
+
+        tipo_fio_id = int(codigo_barra[:6])
+        metragem = int(codigo_barra[6:])     
+
         return tipo_fio_id, metragem
-    except (IndexError, ValueError):
+    except ValueError:
         return None, None
+
 
 def conferir_fio(conn, cursor, codigo_barra, metragem_informada, fornecedor_id):
     try:
@@ -220,8 +223,7 @@ def registrar_producao(conn, cursor):
         print(f"Status: {ordem[7]}")
 
         if ordem[7] == 'Concluída':
-            print(f"\n{VERMELHO}[ERRO]{RESET} Produto já foi processado!")
-            return
+            print(f"\n{VERMELHO}[ERRO]{RESET} Produto já esta processado no sistema!")
 
         confirmacao = input(f"{AMARELO}[INPUT]{RESET} Deseja finalizar essa ordem de produção? ({AMARELO}S{RESET}/{AMARELO}n{RESET}): ").upper()[0]
         if confirmacao != 'S':
