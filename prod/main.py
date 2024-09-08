@@ -10,7 +10,7 @@ AZUL_MARINHO = '\033[94m'
 
 def retirar_material_producao(conn, cursor):
     try:
-        metros_tecido = float(input(f"\n{AMARELO}[INPUT]{RESET} Digite quantos metros^2 de tecido serão produzidos: "))
+        metros_tecido = float(input(f"\n{AMARELO}[INPUT]{RESET} Digite quantos metros² de tecido serão produzidos: "))
         fios_necessarios = metros_tecido * 1000 
         corante_necessario = metros_tecido * 0.5  
 
@@ -22,9 +22,10 @@ def retirar_material_producao(conn, cursor):
         corante_id = int(input(f"\n{AMARELO}[INPUT]{RESET} Digite o ID do corante a ser utilizado: "))
 
         cursor.execute("""
-            SELECT Fio.metragem, Fio.tipo_fio_id, TipoFio.cor 
+            SELECT Fio.metragem, Fio.tipo_fio_id, Cores.id
             FROM Fio 
             JOIN TipoFio ON Fio.tipo_fio_id = TipoFio.id 
+            JOIN Cores ON Cores.id = TipoFio.cor
             WHERE Fio.id = %s AND Fio.em_estoque = TRUE
         """, (fio_id,))
         fio = cursor.fetchone()
@@ -55,7 +56,7 @@ def retirar_material_producao(conn, cursor):
         tipo_fio_id = fio[1] 
         cor_fio = fio[2]  
 
-        codigo_barra = gerar_codigo_barra_ordem_producao(fio_id, corante_id, metros_tecido, tipo_fio_id, cor_fio.upper())
+        codigo_barra = gerar_codigo_barra_ordem_producao(fio_id, corante_id, metros_tecido, tipo_fio_id, cor_fio)
 
         cursor.execute("""
             INSERT INTO OrdemProducao (codigo_barra, metros_produzidos, fio_id, corante_id, data_inicio, status, litros)
@@ -265,45 +266,64 @@ def gerar_relatorios(cursor):
         relatorio = input(f"\n{AMARELO}[INPUT]{RESET} Digite o tipo de relatório ({AMARELO}E{RESET}stoque/{AMARELO}P{RESET}rocesso/{AMARELO}I{RESET}nventario): ").strip().upper()[0]
         
         if relatorio == "E":
-            cursor.execute("SELECT tipo_fio_id, metragem FROM Fio WHERE em_estoque = TRUE")
+            # Estoque de Fios
+            cursor.execute("""
+                SELECT TF.descricao, C.cor, F.metragem 
+                FROM Fio F
+                JOIN TipoFio TF ON F.tipo_fio_id = TF.id
+                JOIN Cores C ON TF.cor = C.id
+                WHERE F.em_estoque = TRUE
+            """)
             fios = cursor.fetchall()
-            cursor.execute("SELECT tipo_corante_id, litros FROM Corante WHERE em_estoque = TRUE")
+            
+            cursor.execute("""
+                SELECT TC.descricao, C.cor, COR.litros 
+                FROM Corante COR
+                JOIN TipoCorante TC ON COR.tipo_corante_id = TC.id
+                JOIN Cores C ON TC.cor = C.id
+                WHERE COR.em_estoque = TRUE
+            """)
             corantes = cursor.fetchall()
             
             print("\nEstoque de fios:")
             for fio in fios:
-                print(f"Tipo de Fio ID: {fio[0]}, Metragem Total: {fio[1]}")
+                print(f"Descrição do Fio: {fio[0]}, Cor: {fio[1]}, Metragem Total: {fio[2]}")
                 
             print("\nEstoque de corantes:")
             for corante in corantes:
-                print(f"Tipo de Corante ID: {corante[0]}, Litros Totais: {corante[1]}")
+                print(f"Descrição do Corante: {corante[0]}, Cor: {corante[1]}, Litros Totais: {corante[2]}")
         
         elif relatorio == "P":
             cursor.execute("""
-                SELECT OP.CODIGO_BARRA, TF.DESCRICAO, TC.DESCRICAO, OP.METROS_PRODUZIDOS, OP.DATA_INICIO, FR.NOME, FR.CEP, C.LITROS FROM ORDEMPRODUCAO OP
-                    JOIN FIO F ON F.ID = OP.FIO_ID
-                    JOIN TIPOFIO TF ON TF.ID = F.TIPO_FIO_ID
-                    JOIN CORANTE C ON C.ID = OP.CORANTE_ID
-                    JOIN TIPOCORANTE TC ON TC.ID = C.TIPO_CORANTE_ID
-                    JOIN FORNECEDOR FR ON FR.ID = F.FORNECEDOR_ID OR FR.ID = C.FORNECEDOR_ID
+                SELECT OP.codigo_barra, TF.descricao, CF.cor, TC.descricao, CC.cor, OP.metros_produzidos, OP.data_inicio, 
+                       FR.nome, FR.cep, OP.litros 
+                FROM OrdemProducao OP
+                JOIN Fio F ON F.id = OP.fio_id
+                JOIN TipoFio TF ON TF.id = F.tipo_fio_id
+                JOIN Cores CF ON TF.cor = CF.id
+                JOIN Corante C ON C.id = OP.corante_id
+                JOIN TipoCorante TC ON TC.id = C.tipo_corante_id
+                JOIN Cores CC ON TC.cor = CC.id
+                JOIN Fornecedor FR ON FR.id = F.fornecedor_id OR FR.id = C.fornecedor_id
             """)
             processos = cursor.fetchall()
             
             print("\nRelatório de Processos em Andamento:\n")
             for processo in processos:
-                print(f"Código de Barra: {processo[0]}, Fio: {processo[1]}, Corante: {processo[2]}")
-                print(f"Metros Produzidos: {processo[3]}, Litros utilizados: {processo[8]}, Data Início: {processo[4]}")
-                print(f"Fornecedor: {processo[5]}, CEP: {processo[6]}")
+                print(f"Código de Barra: {processo[0]}, Fio: {processo[1]} (Cor: {processo[2]}), Corante: {processo[3]} (Cor: {processo[4]})")
+                print(f"Metros Produzidos: {processo[5]}, Litros utilizados: {processo[9]}, Data Início: {processo[6]}")
+                print(f"Fornecedor: {processo[7]}, CEP: {processo[8]}")
                 print('-' * 50)
         
         elif relatorio == "I":
             cursor.execute("""
-                SELECT OP.ID, OP.METROS_PRODUZIDOS, OP.DATA_INICIO, 
-                       TF.COR, TF.DESCRICAO, TC.COR, TC.DESCRICAO 
-                FROM PRODUTOFINAL PF
-                JOIN ORDEMPRODUCAO OP ON OP.ID = PF.ORDEM_PRODUCAO_ID
-                JOIN TIPOFIO TF ON TF.ID = PF.TIPO_FIO_ID
-                JOIN TIPOCORANTE TC ON TC.ID = PF.TIPO_CORANTE_ID
+                SELECT OP.id, OP.metros_produzidos, OP.data_inicio, CF.cor, TF.descricao, CC.cor, TC.descricao
+                FROM ProdutoFinal PF
+                JOIN OrdemProducao OP ON OP.id = PF.ordem_producao_id
+                JOIN TipoFio TF ON TF.id = PF.tipo_fio_id
+                JOIN Cores CF ON TF.cor = CF.id
+                JOIN TipoCorante TC ON TC.id = PF.tipo_corante_id
+                JOIN Cores CC ON TC.cor = CC.id
             """)
             inventario = cursor.fetchall()
             
@@ -324,18 +344,27 @@ def cadastrar_tipo_material(conn, cursor):
     try:
         tipo_material = input(f"\n{AMARELO}[INPUT]{RESET} Digite o tipo de material que deseja cadastrar ({AMARELO}F{RESET}io/{AMARELO}C{RESET}orante): ").strip().upper()[0]
         
-        if tipo_material == 'F':
-            descricao = input(f"\n{AMARELO}[INPUT]{RESET} Digite a descrição do tipo de fio: ").strip()
-            cor = input(f"\n{AMARELO}[INPUT]{RESET} Digite a cor do fio: ").strip()
-            cursor.execute("INSERT INTO TipoFio (descricao, cor) VALUES (%s, %s)", (descricao, cor))
-        elif tipo_material == 'C':
-            descricao = input(f"\n{AMARELO}[INPUT]{RESET} Digite a descrição do tipo de corante: ").strip()
-            cor = input(f"\n{AMARELO}[INPUT]{RESET} Digite a cor do corante: ").strip()
-            cursor.execute("INSERT INTO TipoCorante (descricao, cor) VALUES (%s, %s)", (descricao, cor))
-        else:
+        if tipo_material not in ['F', 'C']:
             print(f"\n{VERMELHO}[ERRO]{RESET} Tipo de material inválido!")
             return
-        
+
+        descricao = input(f"\n{AMARELO}[INPUT]{RESET} Digite a descrição do tipo de material: ").strip()
+        cor = input(f"\n{AMARELO}[INPUT]{RESET} Digite a cor do material: ").strip()
+
+        cursor.execute("SELECT id FROM Cores WHERE cor = %s", (cor,))
+        cor_id = cursor.fetchone()
+
+        if cor_id is None:
+            print(f"\n{VERMELHO}[ERRO]{RESET} Cor '{cor}' não encontrada!")
+            return
+
+        cor_id = cor_id[0] 
+
+        if tipo_material == 'F':
+            cursor.execute("INSERT INTO TipoFio (descricao, cor) VALUES (%s, %s)", (descricao, cor_id))
+        elif tipo_material == 'C':
+            cursor.execute("INSERT INTO TipoCorante (descricao, cor) VALUES (%s, %s)", (descricao, cor_id))
+
         conn.commit()
         print(f"\n{VERDE}[SUCESSO]{RESET} Material cadastrado com sucesso!")
     except Exception as e:
