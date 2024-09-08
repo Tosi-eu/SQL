@@ -46,13 +46,11 @@ def retirar_material_producao(conn, cursor):
             cursor.execute("UPDATE Corante SET em_estoque = FALSE WHERE id = %s", (corante_id,))
 
         codigo_barra = gerar_codigo_barra_ordem_producao(fio_id, corante_id, fios_necessarios, corante_necessario)
-        data_fim = input(f"\n{AMARELO}[INPUT]{RESET} Digite a data de fim do projeto (dd/mm/yyyy): ")
-        data_fim = datetime.strptime(data_fim, '%d/%m/%Y').replace(hour=23, minute=59, second=59)
-        
+
         cursor.execute("""
-            INSERT INTO OrdemProducao (codigo_barra, metros_produzidos, fio_id, corante_id, data_inicio, data_fim, status, litros)
-            VALUES (%s, %s, %s, %s, NOW(), %s, 'Em processamento', %s)
-        """, (codigo_barra, metros_tecido, fio_id, corante_id, data_fim, corante_necessario))
+            INSERT INTO OrdemProducao (codigo_barra, metros_produzidos, fio_id, corante_id, data_inicio, status, litros)
+            VALUES (%s, %s, %s, %s, NOW(), 'Em processamento', %s)
+        """, (codigo_barra, metros_tecido, fio_id, corante_id, corante_necessario))
 
         conn.commit()
         print(f"\n{VERDE}[SUCESSO]{RESET} Materiais retirados e ordem de produção registrada com sucesso.")
@@ -89,14 +87,20 @@ def receber_material(conn, cursor):
             material_existente = cursor.fetchone()
 
             if material_existente:
-                metragem_existente = material_existente[0]
-                nova_metragem = metragem_existente + metragem_extraida
-                codigo_barra = f"{tipo_fio_id}{nova_metragem}"
-                novo_codigo_barra = codigo_barra.zfill(12)
 
-                cursor.execute("UPDATE Fio SET metragem = %s, codigo_barra = %s, em_estoque = TRUE WHERE tipo_fio_id = %s AND fornecedor_id = %s", 
-                               (nova_metragem, novo_codigo_barra, tipo_fio_id, fornecedor_id))
-                print(f"\n{VERDE}[INFO]{RESET} Material já cadastrado, metragem e código de barras atualizados.")
+                resp = input(f"\n{AMARELO}[INFO]{RESET} Produto já encontrado no sistema. Atualizar estoque?").strip().upper()[0]
+                if resp == "S":
+                    metragem_existente = material_existente[0]
+                    nova_metragem = metragem_existente + metragem_extraida
+                    codigo_barra = f"{tipo_fio_id}{nova_metragem}"
+                    novo_codigo_barra = codigo_barra.zfill(12)
+
+                    cursor.execute("UPDATE Fio SET metragem = %s, codigo_barra = %s, em_estoque = TRUE WHERE tipo_fio_id = %s AND fornecedor_id = %s", 
+                                (nova_metragem, novo_codigo_barra, tipo_fio_id, fornecedor_id))
+                    print(f"\n{VERDE}[INFO]{RESET} Mtragem e código de barras atualizados.")
+                else:
+                    print(f"\n{AMARELO}[INFO]{RESET} Operação cancelada")
+                    return
             else:
                 codigo_barra = f"{tipo_fio_id}{metragem_extraida}"
                 novo_codigo_barra = codigo_barra.zfill(12)
@@ -121,14 +125,19 @@ def receber_material(conn, cursor):
             material_existente = cursor.fetchone()
 
             if material_existente:
-                litros_existente = material_existente[0]
-                novo_litro = litros_existente + (metragem_extraida * 4)
-                codigo_barra = f"{tipo_corante_id}{novo_litro}"
-                novo_codigo_barra_somado = codigo_barra.zfill(12)
-                
-                cursor.execute("UPDATE Corante SET litros = %s, codigo_barra = %s, em_estoque = TRUE WHERE tipo_corante_id = %s AND fornecedor_id = %s", 
-                               (novo_litro, novo_codigo_barra_somado, tipo_corante_id, fornecedor_id))
-                print(f"\n{VERDE}[INFO]{RESET} Material já cadastrado, litros e código de barras atualizados.")
+                resp = input(f"\n{AMARELO}[INFO]{RESET} Produto já encontrado no sistema. Atualizar estoque?").strip().upper()[0]
+                if resp == "S":
+                    litros_existente = material_existente[0]
+                    novo_litro = litros_existente + (metragem_extraida * 4)
+                    codigo_barra = f"{tipo_corante_id}{novo_litro}"
+                    novo_codigo_barra_somado = codigo_barra.zfill(12)
+                    
+                    cursor.execute("UPDATE Corante SET litros = %s, codigo_barra = %s, em_estoque = TRUE WHERE tipo_corante_id = %s AND fornecedor_id = %s", 
+                                (novo_litro, novo_codigo_barra_somado, tipo_corante_id, fornecedor_id))
+                    print(f"\n{VERDE}[INFO]{RESET} Material já cadastrado, litros e código de barras atualizados.")
+                else:
+                    print(f"\n{AMARELO}[INFO]{RESET} Operação cancelada")
+                    return
             else:
                 codigo_barra = f"{tipo_corante_id}{metragem_extraida * 4}"
                 novo_codigo_barra = codigo_barra.zfill(12)
@@ -146,9 +155,8 @@ def receber_material(conn, cursor):
         conn.rollback()
         print(f"\n{VERMELHO}[ERRO]{RESET} Ao receber material: {e}")
 
-
 def gerar_codigo_barra_ordem_producao(tipo_id, corante_id, metros, litros):
-    codigo = str(f"{ceil(tipo_id*corante_id)}{ceil(metros*litros)}")
+    codigo = str(f"{tipo_id}{corante_id}{metros}{litros}")
     codigo_barra = codigo.zfill(12)
     return codigo_barra
 
@@ -204,7 +212,7 @@ def registrar_producao(conn, cursor):
             print(f"\n{VERMELHO}[CANCELADO]{RESET} A produção foi cancelada pelo usuário.")
             return
 
-        cursor.execute("UPDATE OrdemProducao SET data_fim = NOW(), status = 'Concluída' WHERE id = %s", (ordem_id,))
+        cursor.execute("UPDATE OrdemProducao SET status = 'Concluída' WHERE id = %s", (ordem_id,))
 
         cursor.execute("SELECT id FROM TipoFio WHERE id = (SELECT tipo_fio_id FROM Fio WHERE id = %s)", (ordem[3],))
         tipo_fio_existe = cursor.fetchone()
@@ -239,9 +247,9 @@ def gerar_relatorios(cursor):
         relatorio = input(f"\n{AMARELO}[INPUT]{RESET} Digite o tipo de relatório ({AMARELO}E{RESET}stoque/{AMARELO}P{RESET}rocesso/{AMARELO}I{RESET}nventario): ").strip().upper()[0]
         
         if relatorio == "E":
-            cursor.execute("SELECT tipo_fio_id, SUM(metragem) FROM Fio WHERE em_estoque = TRUE GROUP BY tipo_fio_id")
+            cursor.execute("SELECT tipo_fio_id, metragem FROM Fio WHERE em_estoque = TRUE")
             fios = cursor.fetchall()
-            cursor.execute("SELECT tipo_corante_id, SUM(litros) FROM Corante WHERE em_estoque = TRUE GROUP BY tipo_corante_id")
+            cursor.execute("SELECT tipo_corante_id, litros FROM Corante WHERE em_estoque = TRUE")
             corantes = cursor.fetchall()
             
             print("\nEstoque de fios:")
@@ -254,7 +262,7 @@ def gerar_relatorios(cursor):
         
         elif relatorio == "P":
             cursor.execute("""
-                SELECT OP.CODIGO_BARRA, TF.DESCRICAO, TC.DESCRICAO, OP.METROS_PRODUZIDOS, OP.DATA_INICIO, OP.DATA_FIM, FR.NOME, FR.CEP, C.LITROS FROM ORDEMPRODUCAO OP
+                SELECT OP.CODIGO_BARRA, TF.DESCRICAO, TC.DESCRICAO, OP.METROS_PRODUZIDOS, OP.DATA_INICIO, FR.NOME, FR.CEP, C.LITROS FROM ORDEMPRODUCAO OP
                     JOIN FIO F ON F.ID = OP.FIO_ID
                     JOIN TIPOFIO TF ON TF.ID = F.TIPO_FIO_ID
                     JOIN CORANTE C ON C.ID = OP.CORANTE_ID
@@ -266,13 +274,13 @@ def gerar_relatorios(cursor):
             print("\nRelatório de Processos em Andamento:\n")
             for processo in processos:
                 print(f"Código de Barra: {processo[0]}, Fio: {processo[1]}, Corante: {processo[2]}")
-                print(f"Metros Produzidos: {processo[3]}, Litros utilizados: {processo[8]}, Data Início: {processo[4]}, Data Fim: {processo[5]}")
-                print(f"Fornecedor: {processo[6]}, CEP: {processo[7]}")
+                print(f"Metros Produzidos: {processo[3]}, Litros utilizados: {processo[8]}, Data Início: {processo[4]}")
+                print(f"Fornecedor: {processo[5]}, CEP: {processo[6]}")
                 print('-' * 50)
         
         elif relatorio == "I":
             cursor.execute("""
-                SELECT OP.ID, OP.METROS_PRODUZIDOS, OP.DATA_INICIO, OP.DATA_FIM, 
+                SELECT OP.ID, OP.METROS_PRODUZIDOS, OP.DATA_INICIO, 
                        TF.COR, TF.DESCRICAO, TC.COR, TC.DESCRICAO 
                 FROM PRODUTOFINAL PF
                 JOIN ORDEMPRODUCAO OP ON OP.ID = PF.ORDEM_PRODUCAO_ID
@@ -284,8 +292,8 @@ def gerar_relatorios(cursor):
             print("\nRelatório de Inventário:\n")
             for item in inventario:
                 print(f"Ordem Produção ID: {item[0]}, Metros Produzidos: {item[1]}, Data Início: {item[2]}, Data Fim: {item[3]}")
-                print(f"Tipo de Fio - Cor: {item[4]}, Descrição: {item[5]}")
-                print(f"Tipo de Corante - Cor: {item[6]}, Descrição: {item[7]}")
+                print(f"Tipo de Fio - Cor: {item[3]}, Descrição: {item[4]}")
+                print(f"Tipo de Corante - Cor: {item[5]}, Descrição: {item[6]}")
                 print('-' * 50)
         
         else:

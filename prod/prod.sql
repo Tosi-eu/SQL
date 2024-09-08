@@ -53,7 +53,6 @@ CREATE TABLE OrdemProducao (
     fio_id INT,
     corante_id INT,
     data_inicio TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    data_fim TIMESTAMP NOT NULL,
     status VARCHAR(50) NOT NULL DEFAULT 'Em processamento',
     litros DECIMAL(3, 1),
     FOREIGN KEY (fio_id) REFERENCES Fio(id) ON DELETE CASCADE,
