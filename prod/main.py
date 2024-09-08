@@ -1,7 +1,6 @@
-from math import ceil
 from mysql.connector import Error
-from datetime import datetime
 import mysql.connector
+from math import ceil
 
 VERDE = '\033[92m'
 VERMELHO = '\033[91m'
@@ -9,17 +8,25 @@ AMARELO = '\033[93m'
 RESET = '\033[0m'
 AZUL_MARINHO = '\033[94m'
 
-#Funções check
 def retirar_material_producao(conn, cursor):
     try:
         metros_tecido = float(input(f"\n{AMARELO}[INPUT]{RESET} Digite quantos metros^2 de tecido serão produzidos: "))
-        fios_necessarios = metros_tecido * 1000  
+        fios_necessarios = metros_tecido * 1000 
         corante_necessario = metros_tecido * 0.5  
+
+        if metros_tecido > 100.0:
+            print(f"\n{VERMELHO}[ERRO]{RESET} Capacidade máxima de produção são 100 m²")
+            return
 
         fio_id = int(input(f"\n{AMARELO}[INPUT]{RESET} Digite o ID do fio a ser utilizado: "))
         corante_id = int(input(f"\n{AMARELO}[INPUT]{RESET} Digite o ID do corante a ser utilizado: "))
 
-        cursor.execute("SELECT metragem FROM Fio WHERE id = %s AND em_estoque = TRUE", (fio_id,))
+        cursor.execute("""
+            SELECT Fio.metragem, Fio.tipo_fio_id, TipoFio.cor 
+            FROM Fio 
+            JOIN TipoFio ON Fio.tipo_fio_id = TipoFio.id 
+            WHERE Fio.id = %s AND Fio.em_estoque = TRUE
+        """, (fio_id,))
         fio = cursor.fetchone()
 
         cursor.execute("SELECT litros FROM Corante WHERE id = %s AND em_estoque = TRUE", (corante_id,))
@@ -45,7 +52,10 @@ def retirar_material_producao(conn, cursor):
         if corante[0] == corante_necessario:
             cursor.execute("UPDATE Corante SET em_estoque = FALSE WHERE id = %s", (corante_id,))
 
-        codigo_barra = gerar_codigo_barra_ordem_producao(fio_id, corante_id, fios_necessarios, corante_necessario)
+        tipo_fio_id = fio[1] 
+        cor_fio = fio[2]  
+
+        codigo_barra = gerar_codigo_barra_ordem_producao(fio_id, corante_id, metros_tecido, tipo_fio_id, cor_fio.upper())
 
         cursor.execute("""
             INSERT INTO OrdemProducao (codigo_barra, metros_produzidos, fio_id, corante_id, data_inicio, status, litros)
@@ -54,6 +64,7 @@ def retirar_material_producao(conn, cursor):
 
         conn.commit()
         print(f"\n{VERDE}[SUCESSO]{RESET} Materiais retirados e ordem de produção registrada com sucesso.")
+    
     except Exception as e:
         conn.rollback()
         print(f"\n{VERMELHO}[ERRO]{RESET} Ao retirar material e gerar ordem de produção: {e}")
@@ -66,6 +77,13 @@ def receber_material(conn, cursor):
             return
         
         fornecedor_id = int(input(f"\n{AMARELO}[INPUT]{RESET} Digite o ID do fornecedor: "))
+
+        cursor.execute("SELECT id FROM FORNECEDOR WHERE id = %s", (fornecedor_id,))
+        resp = cursor.fetchone()
+
+        if not resp:
+            print(f"\n{VERMELHO}[ERRO]{RESET} Fornecedor não encontrado!")
+            return
 
         if tipo_material == 'F':
             codigo_barra = input(f"\n{AMARELO}[INPUT]{RESET} Digite o código de barras do fio: ").strip()
@@ -149,14 +167,14 @@ def receber_material(conn, cursor):
             print(f"\n{VERMELHO}[ERRO]{RESET} Tipo de material inválido!")
             return
 
-        print(f"{VERDE}[SUCESSO]{RESET} Material recebido com sucesso!")
+        print(f"\n{VERDE}[SUCESSO]{RESET} Material recebido com sucesso!")
     
     except Exception as e:
         conn.rollback()
         print(f"\n{VERMELHO}[ERRO]{RESET} Ao receber material: {e}")
 
-def gerar_codigo_barra_ordem_producao(tipo_id, corante_id, metros, litros):
-    codigo = str(f"{tipo_id}{corante_id}{metros}{litros}")
+def gerar_codigo_barra_ordem_producao(fio_id, corante_id, metros, tipo_fio_id, cor_fio):
+    codigo = str(f"{fio_id}{tipo_fio_id}{corante_id}{ceil(metros)}{cor_fio}")   
     codigo_barra = codigo.zfill(12)
     return codigo_barra
 
@@ -291,7 +309,7 @@ def gerar_relatorios(cursor):
             
             print("\nRelatório de Inventário:\n")
             for item in inventario:
-                print(f"Ordem Produção ID: {item[0]}, Metros Produzidos: {item[1]}, Data Início: {item[2]}, Data Fim: {item[3]}")
+                print(f"Ordem Produção ID: {item[0]}, Metros Produzidos: {item[1]}, Data Início: {item[2]}")
                 print(f"Tipo de Fio - Cor: {item[3]}, Descrição: {item[4]}")
                 print(f"Tipo de Corante - Cor: {item[5]}, Descrição: {item[6]}")
                 print('-' * 50)
@@ -373,7 +391,7 @@ try:
         elif opcao == "6":
             gerar_relatorios(cursor)
         elif opcao == "7":
-            print("Saindo do sistema...")
+            print(f"\n{AMARELO}[INFO]{RESET}Saindo do sistema...")
             cursor.close()
             break
         else:
