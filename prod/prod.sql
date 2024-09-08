@@ -19,6 +19,7 @@ CREATE TABLE TipoFio (
     cor INT NOT NULL,
     descricao VARCHAR(255) NOT NULL,
 
+    CONSTRAINT TF_UN UNIQUE(COR, DESCRICAO),
     CONSTRAINT TF_FK FOREIGN KEY(COR) REFERENCES CORES(ID) ON DELETE CASCADE
 );
 
@@ -27,6 +28,7 @@ CREATE TABLE TipoCorante (
     cor INT NOT NULL,
     descricao VARCHAR(255) NOT NULL,
 
+    CONSTRAINT TF_UN UNIQUE(COR, DESCRICAO),
     CONSTRAINT TC_FK FOREIGN KEY(COR) REFERENCES CORES(ID) ON DELETE CASCADE
 );
 
@@ -88,16 +90,22 @@ INSERT INTO Fornecedor (nome, contato, cep) VALUES
 ('Tecelagem Modern', 'contato@modern.com', '45678-123'),
 ('Industria de Fios Ltda', 'contato@fiosltda.com', '87654-321');
 
+INSERT INTO Cores (cor) VALUES 
+('Branco'),
+('Azul'),
+('Verde'),
+('Vermelho');
+
 INSERT INTO TipoFio (cor, descricao) VALUES 
-('Branco', 'Fio de algodão branco para confecção'),
-('Azul', 'Fio de poliéster azul para malharia'),
-('Verde', 'Fio de lã verde para tecidos pesados'),
-('Vermelho', 'Fio de nylon vermelho para roupas esportivas');
+(1, 'Fio de algodão branco para confecção'),
+(2, 'Fio de poliéster azul para malharia'),
+(3, 'Fio de lã verde para tecidos pesados'),
+(4, 'Fio de nylon vermelho para roupas esportivas');
 
 INSERT INTO TipoCorante (cor, descricao) VALUES 
-('Branco', 'Corante branco para tingimento de tecidos leves'),
-('Azul', 'Corante azul para tingimento de tecidos sintéticos'),
-('Verde', 'Corante verde para tingimento de lã'),
-('Vermelho', 'Corante vermelho para tingimento de roupas esportivas');
+(1, 'Corante branco para tingimento de tecidos leves'),
+(2, 'Corante azul para tingimento de tecidos sintéticos'),
+(3, 'Corante verde para tingimento de lã'),
+(4, 'Corante vermelho para tingimento de roupas esportivas');
 
 
