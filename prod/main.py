@@ -1,3 +1,4 @@
+from math import ceil
 from mysql.connector import Error
 from datetime import datetime
 import mysql.connector
@@ -7,6 +8,57 @@ VERMELHO = '\033[91m'
 AMARELO = '\033[93m'
 RESET = '\033[0m'
 AZUL_MARINHO = '\033[94m'
+
+#Funções check
+def retirar_material_producao(conn, cursor):
+    try:
+        metros_tecido = float(input(f"\n{AMARELO}[INPUT]{RESET} Digite quantos metros^2 de tecido serão produzidos: "))
+        fios_necessarios = metros_tecido * 1000  
+        corante_necessario = metros_tecido * 0.5  
+
+        fio_id = int(input(f"\n{AMARELO}[INPUT]{RESET} Digite o ID do fio a ser utilizado: "))
+        corante_id = int(input(f"\n{AMARELO}[INPUT]{RESET} Digite o ID do corante a ser utilizado: "))
+
+        cursor.execute("SELECT metragem FROM Fio WHERE id = %s AND em_estoque = TRUE", (fio_id,))
+        fio = cursor.fetchone()
+
+        cursor.execute("SELECT litros FROM Corante WHERE id = %s AND em_estoque = TRUE", (corante_id,))
+        corante = cursor.fetchone()
+
+        if not fio or not corante:
+            print(f"\n{VERMELHO}[ERRO]{RESET} Fio ou corante não encontrado ou fora de estoque.")
+            return
+
+        if fio[0] < fios_necessarios:
+            print(f"\n{VERMELHO}[ERRO]{RESET} Fio insuficiente. Metragem disponível: {fio[0]} metros.")
+            return
+
+        if corante[0] < corante_necessario:
+            print(f"\n{VERMELHO}[ERRO]{RESET} Corante insuficiente. Litros disponíveis: {corante[0]} litros.")
+            return
+
+        cursor.execute("UPDATE Fio SET metragem = metragem - %s WHERE id = %s", (fios_necessarios, fio_id))
+        cursor.execute("UPDATE Corante SET litros = litros - %s WHERE id = %s", (corante_necessario, corante_id))
+
+        if fio[0] == fios_necessarios:
+            cursor.execute("UPDATE Fio SET em_estoque = FALSE WHERE id = %s", (fio_id,))
+        if corante[0] == corante_necessario:
+            cursor.execute("UPDATE Corante SET em_estoque = FALSE WHERE id = %s", (corante_id,))
+
+        codigo_barra = gerar_codigo_barra_ordem_producao(fios_necessarios, corante_necessario)
+        data_fim = input(f"\n{AMARELO}[INPUT]{RESET} Digite a data de fim do projeto (dd/mm/yyyy): ")
+        data_fim = datetime.strptime(data_fim, '%d/%m/%Y').replace(hour=23, minute=59, second=59)
+        
+        cursor.execute("""
+            INSERT INTO OrdemProducao (codigo_barra, metros_produzidos, fio_id, corante_id, data_inicio, data_fim, status, litros)
+            VALUES (%s, %s, %s, %s, NOW(), %s, 'Em processamento', %s)
+        """, (codigo_barra, metros_tecido, fio_id, corante_id, data_fim, corante_necessario))
+
+        conn.commit()
+        print(f"\n{VERDE}[SUCESSO]{RESET} Materiais retirados e ordem de produção registrada com sucesso.")
+    except Exception as e:
+        conn.rollback()
+        print(f"\n{VERMELHO}[ERRO]{RESET} Ao retirar material e gerar ordem de produção: {e}")
 
 def receber_material(conn, cursor):
     try:
@@ -76,60 +128,12 @@ def receber_material(conn, cursor):
         conn.rollback()
         print(f"\n{VERMELHO}[ERRO]{RESET} Ao receber material: {e}")
 
-def gerar_codigo_barra_ordem_producao(fio_id, corante_id):
-    return str(f"\nPROD-{fio_id}-{corante_id}")
+def gerar_codigo_barra_ordem_producao(metros, litros):
+    codigo = str(f"{ceil(metros / litros)}{ceil(metros*litros)}")
+    codigo_barra = codigo.zfill(12)
 
-def retirar_material_producao(conn, cursor):
-    try:
-        metros_tecido = float(input(f"\n{AMARELO}[INPUT]{RESET} Digite quantos metros^2 de tecido serão produzidos: "))
-        fios_necessarios = metros_tecido * 1000  
-        corante_necessario = metros_tecido * 0.5  
+    return codigo_barra
 
-        fio_id = int(input(f"\n{AMARELO}[INPUT]{RESET} Digite o ID do fio a ser utilizado: "))
-        corante_id = int(input(f"\n{AMARELO}[INPUT]{RESET} Digite o ID do corante a ser utilizado: "))
-
-        cursor.execute("SELECT metragem FROM Fio WHERE id = %s AND em_estoque = TRUE", (fio_id,))
-        fio = cursor.fetchone()
-
-        cursor.execute("SELECT litros FROM Corante WHERE id = %s AND em_estoque = TRUE", (corante_id,))
-        corante = cursor.fetchone()
-
-        if not fio or not corante:
-            print(f"\n{VERMELHO}[ERRO]{RESET} Fio ou corante não encontrado ou fora de estoque.")
-            return
-
-        if fio[0] < fios_necessarios:
-            print(f"\n{VERMELHO}[ERRO]{RESET} Fio insuficiente. Metragem disponível: {fio[0]} metros.")
-            return
-
-        if corante[0] < corante_necessario:
-            print(f"\n{VERMELHO}[ERRO]{RESET} Corante insuficiente. Litros disponíveis: {corante[0]} litros.")
-            return
-
-        cursor.execute("UPDATE Fio SET metragem = metragem - %s WHERE id = %s", (fios_necessarios, fio_id))
-        cursor.execute("UPDATE Corante SET litros = litros - %s WHERE id = %s", (corante_necessario, corante_id))
-
-        if fio[0] == fios_necessarios:
-            cursor.execute("UPDATE Fio SET em_estoque = FALSE WHERE id = %s", (fio_id,))
-        if corante[0] == corante_necessario:
-            cursor.execute("UPDATE Corante SET em_estoque = FALSE WHERE id = %s", (corante_id,))
-
-        codigo_barra = gerar_codigo_barra_ordem_producao(fio_id, corante_id)
-        data_fim = input(f"\n{AMARELO}[INPUT]{RESET} Digite a data de fim do projeto (dd/mm/yyyy): ")
-        data_fim = datetime.strptime(data_fim, '%d/%m/%Y').replace(hour=23, minute=59, second=59)
-        
-        cursor.execute("""
-            INSERT INTO OrdemProducao (codigo_barra, metros_produzidos, fio_id, corante_id, data_inicio, data_fim, status, litros)
-            VALUES (%s, %s, %s, %s, NOW(), %s, 'Em processamento', %s)
-        """, (codigo_barra, metros_tecido, fio_id, corante_id, data_fim, corante_necessario))
-
-        conn.commit()
-        print(f"\n{VERDE}[SUCESSO]{RESET} Materiais retirados e ordem de produção registrada com sucesso.")
-    except Exception as e:
-        conn.rollback()
-        print(f"\n{VERMELHO}[ERRO]{RESET} Ao retirar material e gerar ordem de produção: {e}")
-
-#Funções check
 def conexao_bd(db_host, db_user, psswd, db):
     return mysql.connector.connect(
         host=db_host,
