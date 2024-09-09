@@ -39,7 +39,7 @@ CREATE TABLE Corante (
     codigo_barra CHAR(12) UNIQUE NOT NULL,
     tipo_corante_id INT,
     fornecedor_id INT,
-    litros DECIMAL(10, 0),
+    litros INTEGER,
     em_estoque BOOLEAN DEFAULT FALSE,
     FOREIGN KEY (tipo_corante_id) REFERENCES TipoCorante(id) ON DELETE CASCADE,
     FOREIGN KEY (fornecedor_id) REFERENCES Fornecedor(id) ON DELETE SET NULL,

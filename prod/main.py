@@ -1,6 +1,5 @@
 from mysql.connector import Error
 import mysql.connector
-from math import ceil
 
 VERDE = '\033[92m'
 VERMELHO = '\033[91m'
@@ -8,9 +7,102 @@ AMARELO = '\033[93m'
 RESET = '\033[0m'
 AZUL_MARINHO = '\033[94m'
 
+def receber_material(conn, cursor):
+    try:
+        codigo_barra = input(f"\n{AMARELO}[INPUT]{RESET} Digite o código de barras: ").strip()
+        
+        tipo_material = codigo_barra[0]
+        if tipo_material not in ['1', '2'] or len(codigo_barra) != 12:
+            print(f"\n{VERMELHO}[ERRO]{RESET} Código de barras inválido!")
+            return
+
+        fornecedor_id = codigo_barra[1:4].lstrip('0')
+        tipo_material_id = codigo_barra[4:6].lstrip('0') 
+        quantidade_extraida = int(codigo_barra[6:].lstrip('0'))
+
+        cursor.execute("SELECT id FROM FORNECEDOR WHERE id = %s", (fornecedor_id,))
+        resp = cursor.fetchone()
+        if not resp:
+            print(f"\n{VERMELHO}[ERRO]{RESET} Fornecedor não encontrado!")
+            return
+
+        if tipo_material == '1':  # Para fios
+            if quantidade_extraida > 100000:
+                print(f"\n{VERMELHO}[ERRO]{RESET} Metragem maior que o limite!")
+                return
+            
+            resposta = input(f"\n{AMARELO}[CONFIRMAR]{RESET} A metragem é de {quantidade_extraida}. Confirma? (S/N): ").strip().upper()[0]
+            if resposta != 'S':
+                print(f"\n{VERMELHO}[ERRO]{RESET} Metragem não confirmada!")
+                return
+
+            cursor.execute("SELECT metragem FROM Fio WHERE tipo_fio_id = %s AND fornecedor_id = %s", (tipo_material_id, fornecedor_id))
+            material_existente = cursor.fetchone()
+
+            if material_existente:
+                resp = input(f"\n{AMARELO}[INFO]{RESET} Produto já encontrado no sistema. Atualizar estoque? (S/N): ").strip().upper()[0]
+                if resp == "S":
+                    metragem_existente = material_existente[0]
+                    nova_metragem = metragem_existente + quantidade_extraida
+                    novo_codigo_barra = codigo_barra[:6] + str(nova_metragem).zfill(6)
+
+                    cursor.execute("""
+                        UPDATE Fio 
+                        SET metragem = %s, codigo_barra = %s, em_estoque = TRUE 
+                        WHERE tipo_fio_id = %s AND fornecedor_id = %s
+                    """, (nova_metragem, novo_codigo_barra, tipo_material_id, fornecedor_id))
+                    print(f"\n{VERDE}[INFO]{RESET} Metragem e código de barras atualizados.")
+                else:
+                    print(f"\n{AMARELO}[INFO]{RESET} Operação cancelada")
+                    return
+            else:
+                cursor.execute("""
+                    INSERT INTO Fio (codigo_barra, tipo_fio_id, metragem, em_estoque, fornecedor_id) 
+                    VALUES (%s, %s, %s, TRUE, %s)
+                """, (codigo_barra, tipo_material_id, quantidade_extraida, fornecedor_id))
+            conn.commit()
+
+        if tipo_material == '2':  # Para corantes
+            resposta = input(f"\n{AMARELO}[CONFIRMAR]{RESET} O total de litros é {quantidade_extraida}. Confirma? (S/N): ").strip().upper()[0]
+            if resposta != 'S':
+                print(f"\n{VERMELHO}[ERRO]{RESET} Quantidade não confirmada!")
+                return
+
+            cursor.execute("SELECT litros FROM Corante WHERE tipo_corante_id = %s AND fornecedor_id = %s", (tipo_material_id, fornecedor_id))
+            material_existente = cursor.fetchone()
+
+            if material_existente:
+                resp = input(f"\n{AMARELO}[INFO]{RESET} Produto já encontrado no sistema. Atualizar estoque? (S/N): ").strip().upper()[0]
+                if resp == "S":
+                    litros_existente = material_existente[0]
+                    novo_litro = litros_existente + (quantidade_extraida * 4)
+                    novo_codigo_barra = codigo_barra[:6] + str(novo_litro).zfill(6)
+
+                    cursor.execute("""
+                        UPDATE Corante 
+                        SET litros = %s, codigo_barra = %s, em_estoque = TRUE 
+                        WHERE tipo_corante_id = %s AND fornecedor_id = %s
+                    """, (novo_litro, novo_codigo_barra, tipo_material_id, fornecedor_id))
+                    print(f"\n{VERDE}[INFO]{RESET} Material já cadastrado, litros e código de barras atualizados.")
+                else:
+                    print(f"\n{AMARELO}[INFO]{RESET} Operação cancelada")
+                    return
+            else:
+                cursor.execute("""
+                    INSERT INTO Corante (codigo_barra, tipo_corante_id, fornecedor_id, litros, em_estoque) 
+                    VALUES (%s, %s, %s, %s, TRUE)
+                """, (codigo_barra, tipo_material_id, fornecedor_id, quantidade_extraida * 4))
+            conn.commit()
+
+        print(f"\n{VERDE}[SUCESSO]{RESET} Material recebido com sucesso!")
+
+    except Exception as e:
+        conn.rollback()
+        print(f"\n{VERMELHO}[ERRO]{RESET} Ao receber material: {e}")
+
 def retirar_material_producao(conn, cursor):
     try:
-        metros_tecido = float(input(f"\n{AMARELO}[INPUT]{RESET} Digite quantos metros^2 de tecido serão produzidos: "))
+        metros_tecido = float(input(f"\n{AMARELO}[INPUT]{RESET} Digite quantos metros² de tecido serão produzidos: "))
         fios_necessarios = metros_tecido * 1000 
         corante_necessario = metros_tecido * 0.5  
 
@@ -69,112 +161,8 @@ def retirar_material_producao(conn, cursor):
         conn.rollback()
         print(f"\n{VERMELHO}[ERRO]{RESET} Ao retirar material e gerar ordem de produção: {e}")
 
-def receber_material(conn, cursor):
-    try:
-        tipo_material = input(f"\n{AMARELO}[INPUT]{RESET} Digite o tipo de material ({AMARELO}F{RESET}io/{AMARELO}C{RESET}orante): ").strip().upper()[0]
-        if tipo_material not in ['F', 'C']:
-            print(f"\n{VERMELHO}[ERRO]{RESET} Tipo de material não especificado")
-            return
-        
-        fornecedor_id = int(input(f"\n{AMARELO}[INPUT]{RESET} Digite o ID do fornecedor: "))
-
-        cursor.execute("SELECT id FROM FORNECEDOR WHERE id = %s", (fornecedor_id,))
-        resp = cursor.fetchone()
-
-        if not resp:
-            print(f"\n{VERMELHO}[ERRO]{RESET} Fornecedor não encontrado!")
-            return
-
-        if tipo_material == 'F':
-            codigo_barra = input(f"\n{AMARELO}[INPUT]{RESET} Digite o código de barras do fio: ").strip()
-            tipo_fio_id, metragem_extraida = extrair_dados_codigo_barra(codigo_barra)
-            if int(metragem_extraida) > 100000:
-                print(f"\n{VERMELHO}[ERRO]{RESET}Metragem maior que o limite!")
-                return
-
-            if tipo_fio_id is None or metragem_extraida is None:
-                print(f"\n{VERMELHO}[ERRO]{RESET} Código de barras inválido!")
-                return
-
-            resposta = input(f"\n{AMARELO}[CONFIRMAR]{RESET} A metragem é de {metragem_extraida}. Confirma? (S/N): ").strip().upper()[0]
-            if resposta != 'S':
-                print(f"\n{VERMELHO}[ERRO]{RESET} Metragem não confirmada!")
-                return
-            
-            cursor.execute("SELECT metragem FROM Fio WHERE tipo_fio_id = %s AND fornecedor_id = %s", (tipo_fio_id, fornecedor_id))
-            material_existente = cursor.fetchone()
-
-            if material_existente:
-
-                resp = input(f"\n{AMARELO}[INFO]{RESET} Produto já encontrado no sistema. Atualizar estoque?").strip().upper()[0]
-                if resp == "S":
-                    metragem_existente = material_existente[0]
-                    nova_metragem = metragem_existente + metragem_extraida
-                    codigo_barra = f"{tipo_fio_id}{nova_metragem}"
-                    novo_codigo_barra = codigo_barra.zfill(12)
-
-                    cursor.execute("UPDATE Fio SET metragem = %s, codigo_barra = %s, em_estoque = TRUE WHERE tipo_fio_id = %s AND fornecedor_id = %s", 
-                                (nova_metragem, novo_codigo_barra, tipo_fio_id, fornecedor_id))
-                    print(f"\n{VERDE}[INFO]{RESET} Mtragem e código de barras atualizados.")
-                else:
-                    print(f"\n{AMARELO}[INFO]{RESET} Operação cancelada")
-                    return
-            else:
-                codigo_barra = f"{tipo_fio_id}{metragem_extraida}"
-                novo_codigo_barra = codigo_barra.zfill(12)
-                cursor.execute("INSERT INTO Fio (codigo_barra, tipo_fio_id, metragem, em_estoque, fornecedor_id) VALUES (%s, %s, %s, TRUE, %s)", 
-                               (novo_codigo_barra, tipo_fio_id, metragem_extraida, fornecedor_id))
-            conn.commit()
-
-        elif tipo_material == 'C':
-            codigo_barra = input(f"\n{AMARELO}[INPUT]{RESET} Digite o código de barras do corante: ").strip()
-            tipo_corante_id, metragem_extraida = extrair_dados_codigo_barra(codigo_barra) 
-
-            if tipo_corante_id is None or metragem_extraida is None:
-                print(f"\n{VERMELHO}[ERRO]{RESET} Código de barras inválido!")
-                return
-
-            resposta = input(f"\n{AMARELO}[CONFIRMAR]{RESET} O total de litros é {metragem_extraida * 4}. Confirma? (S/N): ").strip().upper()[0]
-            if resposta != 'S':
-                print(f"\n{VERMELHO}[ERRO]{RESET} Quantidade não confirmada!")
-                return
-
-            cursor.execute("SELECT litros FROM Corante WHERE tipo_corante_id = %s AND fornecedor_id = %s", (tipo_corante_id, fornecedor_id))
-            material_existente = cursor.fetchone()
-
-            if material_existente:
-                resp = input(f"\n{AMARELO}[INFO]{RESET} Produto já encontrado no sistema. Atualizar estoque?").strip().upper()[0]
-                if resp == "S":
-                    litros_existente = material_existente[0]
-                    novo_litro = litros_existente + (metragem_extraida * 4)
-                    codigo_barra = f"{tipo_corante_id}{novo_litro}"
-                    novo_codigo_barra_somado = codigo_barra.zfill(12)
-                    
-                    cursor.execute("UPDATE Corante SET litros = %s, codigo_barra = %s, em_estoque = TRUE WHERE tipo_corante_id = %s AND fornecedor_id = %s", 
-                                (novo_litro, novo_codigo_barra_somado, tipo_corante_id, fornecedor_id))
-                    print(f"\n{VERDE}[INFO]{RESET} Material já cadastrado, litros e código de barras atualizados.")
-                else:
-                    print(f"\n{AMARELO}[INFO]{RESET} Operação cancelada")
-                    return
-            else:
-                codigo_barra = f"{tipo_corante_id}{metragem_extraida * 4}"
-                novo_codigo_barra = codigo_barra.zfill(12)
-                cursor.execute("INSERT INTO Corante (codigo_barra, tipo_corante_id, fornecedor_id, litros, em_estoque) VALUES (%s, %s, %s, %s, TRUE)", 
-                               (novo_codigo_barra, tipo_corante_id, fornecedor_id, metragem_extraida * 4))
-            conn.commit()
-
-        else:
-            print(f"\n{VERMELHO}[ERRO]{RESET} Tipo de material inválido!")
-            return
-
-        print(f"\n{VERDE}[SUCESSO]{RESET} Material recebido com sucesso!")
-    
-    except Exception as e:
-        conn.rollback()
-        print(f"\n{VERMELHO}[ERRO]{RESET} Ao receber material: {e}")
-
 def gerar_codigo_barra_ordem_producao(fio_id, corante_id, metros, tipo_fio_id, cor_fio):
-    codigo = str(f"{fio_id}{tipo_fio_id}{corante_id}{ceil(metros)}{cor_fio}")   
+    codigo = str(f"{fio_id}{tipo_fio_id}{corante_id}{int(metros)}{cor_fio}")   
     codigo_barra = codigo.zfill(12)
     return codigo_barra
 
@@ -185,16 +173,6 @@ def conexao_bd(db_host, db_user, psswd, db):
         password=psswd,
         database=db
     )
-
-def extrair_dados_codigo_barra(codigo_barra):
-    try:
-        codigo_barra = codigo_barra.zfill(12)
-        tipo_fio_id = int(codigo_barra[:6])  
-        metragem = int(codigo_barra[6:])     
-
-        return tipo_fio_id, metragem
-    except ValueError:
-        return None, None
     
 def registrar_producao(conn, cursor):
     try:
@@ -292,7 +270,7 @@ def gerar_relatorios(cursor):
             print("\nRelatório de Processos em Andamento:\n")
             for processo in processos:
                 print(f"Código de Barra: {processo[0]}, Fio: {processo[1]}, Corante: {processo[2]}")
-                print(f"Metros Produzidos: {processo[3]}, Litros utilizados: {processo[8]}, Data Início: {processo[4]}")
+                print(f"Metros Produzidos: {processo[3]}, Litros utilizados: {processo[7]}, Data Início: {processo[4]}")
                 print(f"Fornecedor: {processo[5]}, CEP: {processo[6]}")
                 print('-' * 50)
         
