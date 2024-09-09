@@ -1,6 +1,5 @@
 from mysql.connector import Error
 import mysql.connector
-from math import ceil
 
 VERDE = '\033[92m'
 VERMELHO = '\033[91m'
@@ -164,7 +163,7 @@ def receber_material(conn, cursor):
         print(f"\n{VERMELHO}[ERRO]{RESET} Ao receber material: {e}")
 
 def gerar_codigo_barra_ordem_producao(fio_id, corante_id, metros, tipo_fio_id, cor_fio):
-    codigo = str(f"{fio_id}{tipo_fio_id}{corante_id}{ceil(metros)}{cor_fio}")   
+    codigo = str(f"{fio_id}{tipo_fio_id}{corante_id}{int(metros)}{cor_fio}")   
     codigo_barra = codigo.zfill(12)
     return codigo_barra
 
