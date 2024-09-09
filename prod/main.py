@@ -63,10 +63,9 @@ def receber_material(conn, cursor):
             conn.commit()
 
         if tipo_material == '2':  # Para corantes
-            resposta = input(f"\n{AMARELO}[CONFIRMAR]{RESET} O total de litros é {quantidade_extraida}. Confirma? (S/N): ").strip().upper()[0]
-            if resposta != 'S':
-                print(f"\n{VERMELHO}[ERRO]{RESET} Quantidade não confirmada!")
-                return
+            
+            litros = quantidade_extraida*4
+            print(f"\n{AMARELO}[INFO]{RESET} O total de litros é {litros} litros.")
 
             cursor.execute("SELECT litros FROM Corante WHERE tipo_corante_id = %s AND fornecedor_id = %s", (tipo_material_id, fornecedor_id))
             material_existente = cursor.fetchone()
@@ -88,10 +87,11 @@ def receber_material(conn, cursor):
                     print(f"\n{AMARELO}[INFO]{RESET} Operação cancelada")
                     return
             else:
+                novo_codigo_barra = codigo_barra[:6] + str(litros).zfill(6)
                 cursor.execute("""
                     INSERT INTO Corante (codigo_barra, tipo_corante_id, fornecedor_id, litros, em_estoque) 
                     VALUES (%s, %s, %s, %s, TRUE)
-                """, (codigo_barra, tipo_material_id, fornecedor_id, quantidade_extraida * 4))
+                """, (novo_codigo_barra, tipo_material_id, fornecedor_id, litros))
             conn.commit()
 
         print(f"\n{VERDE}[SUCESSO]{RESET} Material recebido com sucesso!")
