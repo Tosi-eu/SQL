@@ -244,7 +244,7 @@ def gerar_relatorios(cursor):
         
         elif relatorio == "P":
             cursor.execute("""
-                SELECT OP.CODIGO_BARRA, TF.DESCRICAO, TC.DESCRICAO, OP.METROS_PRODUZIDOS, OP.DATA_INICIO, OP.DATA_FIM, FR.NOME, FR.CEP, C.LITROS FROM ORDEMPRODUCAO OP
+                SELECT OP.CODIGO_BARRA, TF.DESCRICAO, TC.DESCRICAO, OP.METROS_PRODUZIDOS, OP.DATA_INICIO, FR.NOME, FR.CEP, C.LITROS FROM ORDEMPRODUCAO OP
                     JOIN FIO F ON F.ID = OP.FIO_ID
                     JOIN TIPOFIO TF ON TF.ID = F.TIPO_FIO_ID
                     JOIN CORANTE C ON C.ID = OP.CORANTE_ID
@@ -256,8 +256,8 @@ def gerar_relatorios(cursor):
             print("\nRelatório de Processos em Andamento:\n")
             for processo in processos:
                 print(f"Código de Barra: {processo[0]}, Fio: {processo[1]}, Corante: {processo[2]}")
-                print(f"Metros Produzidos: {processo[3]}, Litros utilizados: {processo[8]}, Data Início: {processo[4]}, Data Fim: {processo[5]}")
-                print(f"Fornecedor: {processo[6]}, CEP: {processo[7]}")
+                print(f"Metros Produzidos: {processo[3]}, Litros utilizados: {processo[7]}, Data Início: {processo[4]}, Data Fim: {processo[5]}")
+                print(f"Fornecedor: {processo[5]}, CEP: {processo[6]}")
                 print('-' * 50)
         
         elif relatorio == "I":
