@@ -21,20 +21,21 @@ CREATE TABLE TipoCorante (
     descricao VARCHAR(255) NOT NULL
 );
 
-    CREATE TABLE Estoque (
+CREATE TABLE Estoque (
         id INT AUTO_INCREMENT PRIMARY KEY,
         tipo_material ENUM('Fio', 'Corante') NOT NULL,
-        quantidade DECIMAL(8, 2)
+        quantidade DECIMAL(8, 2),
+        em_estoque BOOLEAN DEFAULT FALSE
     );
 
 CREATE TABLE Fio (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    codigo_barra CHAR(12) UNIQUE NOT NULL,
+    codigo_barra CHAR(12) NOT NULL,
     tipo_fio_id INT,
     fornecedor_id INT,
     metragem INTEGER,
     estoque INT,
-    em_estoque BOOLEAN DEFAULT FALSE,
+    CONSTRAINT FIO_UN UNIQUE(id, codigo_barra),
     FOREIGN KEY(estoque) REFERENCES Estoque(id) ON DELETE CASCADE,
     FOREIGN KEY (tipo_fio_id) REFERENCES TipoFio(id) ON DELETE CASCADE,
     FOREIGN KEY (fornecedor_id) REFERENCES Fornecedor(id) ON DELETE SET NULL,
@@ -44,12 +45,12 @@ CREATE TABLE Fio (
 
 CREATE TABLE Corante (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    codigo_barra CHAR(12) UNIQUE NOT NULL,
+    codigo_barra CHAR(12) NOT NULL,
     tipo_corante_id INT,
     fornecedor_id INT,
     litros INTEGER,
-    em_estoque BOOLEAN DEFAULT FALSE,
     estoque INT,
+    CONSTRAINT FIO_UN UNIQUE(id, codigo_barra),
     FOREIGN KEY(estoque) REFERENCES Estoque(id) ON DELETE CASCADE,
     FOREIGN KEY (tipo_corante_id) REFERENCES TipoCorante(id) ON DELETE CASCADE,
     FOREIGN KEY (fornecedor_id) REFERENCES Fornecedor(id) ON DELETE SET NULL,
@@ -67,8 +68,8 @@ CREATE TABLE OrdemProducao (
     litros DECIMAL(5,2),
     FOREIGN KEY (fio_id) REFERENCES Fio(id) ON DELETE CASCADE,
     FOREIGN KEY (corante_id) REFERENCES Corante(id) ON DELETE CASCADE,
-    CONSTRAINT METROS_CK CHECK(METROS_PRODUZIDOS >= 0 AND METROS_PRODUZIDOS <= 100),
-    CONSTRAINT LITROS_CK CHECK(LITROS <= 50)
+    CONSTRAINT METROS_CK CHECK(METROS_PRODUZIDOS >= 0),
+    CONSTRAINT LITROS_CK CHECK(LITROS >= 0.0)
 );  
 
 CREATE TABLE ProdutoFinal (

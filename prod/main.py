@@ -44,25 +44,31 @@ def receber_material(conn, cursor):
                 resp = input(f"\n{AMARELO}[INFO]{RESET} Produto já encontrado no sistema. Atualizar estoque? (S/N): ").strip().upper()[0]
                 if resp == "S":
                     estoque_id = material_existente[1]
-                    cursor.execute("SELECT quantidade FROM Estoque WHERE id = %s", (estoque_id,))
-                    estoque_atual = cursor.fetchone()[0]
+                    cursor.execute("SELECT quantidade, em_estoque FROM Estoque WHERE id = %s", (estoque_id,))
+                    estoque_atual, em_estoque = cursor.fetchone()
                     nova_quantidade = estoque_atual + quantidade_extraida
 
-                    cursor.execute("UPDATE Estoque SET quantidade = %s WHERE id = %s", (nova_quantidade, estoque_id))
+                    cursor.execute("UPDATE Estoque SET quantidade = %s, em_estoque = TRUE WHERE id = %s", (nova_quantidade, estoque_id))
+
+                    cursor.execute("""
+                        INSERT INTO Fio (codigo_barra, tipo_fio_id, metragem, fornecedor_id, estoque) 
+                        VALUES (%s, %s, %s, %s, %s)
+                    """, (codigo_barra, tipo_material_id, quantidade_extraida, fornecedor_id, estoque_id))
+                    
                     print(f"\n{VERDE}[INFO]{RESET} Estoque atualizado com sucesso.")
                 else:
                     print(f"\n{AMARELO}[INFO]{RESET} Operação cancelada")
                     return
             else:
                 cursor.execute("""
-                    INSERT INTO Estoque (tipo_material, quantidade) 
-                    VALUES ('Fio', %s)
+                    INSERT INTO Estoque (tipo_material, quantidade, em_estoque) 
+                    VALUES ('Fio', %s, TRUE)
                 """, (quantidade_extraida,))
                 estoque_id = cursor.lastrowid
 
                 cursor.execute("""
-                    INSERT INTO Fio (codigo_barra, tipo_fio_id, metragem, em_estoque, fornecedor_id, estoque) 
-                    VALUES (%s, %s, %s, TRUE, %s, %s)
+                    INSERT INTO Fio (codigo_barra, tipo_fio_id, metragem, fornecedor_id, estoque) 
+                    VALUES (%s, %s, %s, %s, %s)
                 """, (codigo_barra, tipo_material_id, quantidade_extraida, fornecedor_id, estoque_id))
             conn.commit()
 
@@ -78,25 +84,31 @@ def receber_material(conn, cursor):
                 resp = input(f"\n{AMARELO}[INFO]{RESET} Produto já encontrado no sistema. Atualizar estoque? (S/N): ").strip().upper()[0]
                 if resp == "S":
                     estoque_id = material_existente[1]
-                    cursor.execute("SELECT quantidade FROM Estoque WHERE id = %s", (estoque_id,))
-                    estoque_atual = cursor.fetchone()[0]
+                    cursor.execute("SELECT quantidade, em_estoque FROM Estoque WHERE id = %s", (estoque_id,))
+                    estoque_atual, _ = cursor.fetchone()
                     nova_quantidade = estoque_atual + litros
 
-                    cursor.execute("UPDATE Estoque SET quantidade = %s WHERE id = %s", (nova_quantidade, estoque_id))
+                    cursor.execute("UPDATE Estoque SET quantidade = %s, em_estoque = TRUE WHERE id = %s", (nova_quantidade, estoque_id))
+
+                    cursor.execute("""
+                        INSERT INTO Corante (codigo_barra, tipo_corante_id, fornecedor_id, litros, estoque) 
+                        VALUES (%s, %s, %s, %s, %s)
+                    """, (codigo_barra, tipo_material_id, fornecedor_id, litros, estoque_id))
+                    
                     print(f"\n{VERDE}[INFO]{RESET} Estoque atualizado com sucesso.")
                 else:
                     print(f"\n{AMARELO}[INFO]{RESET} Operação cancelada")
                     return
             else:
                 cursor.execute("""
-                    INSERT INTO Estoque (tipo_material, quantidade) 
-                    VALUES ('Corante', %s)
+                    INSERT INTO Estoque (tipo_material, quantidade, em_estoque) 
+                    VALUES ('Corante', %s, TRUE)
                 """, (litros,))
                 estoque_id = cursor.lastrowid
 
                 cursor.execute("""
-                    INSERT INTO Corante (codigo_barra, tipo_corante_id, fornecedor_id, litros, em_estoque, estoque) 
-                    VALUES (%s, %s, %s, %s, TRUE, %s)
+                    INSERT INTO Corante (codigo_barra, tipo_corante_id, fornecedor_id, litros, estoque) 
+                    VALUES (%s, %s, %s, %s, %s)
                 """, (codigo_barra, tipo_material_id, fornecedor_id, litros, estoque_id))
             conn.commit()
 
@@ -112,25 +124,26 @@ def retirar_material_producao(conn, cursor):
         fios_necessarios = decimal.Decimal(metros_tecido * 1000)
         corante_necessario = decimal.Decimal(metros_tecido * 0.5) 
 
-        if metros_tecido > 100.0:
-            print(f"\n{VERMELHO}[ERRO]{RESET} Capacidade máxima de produção são 100 m²")
-            return
+        if metros_tecido > 999.9:
+            print(f"\n{VERMELHO}[ERRO]{RESET} Quantidade Máxima Excedida!")
 
         fio_id = int(input(f"\n{AMARELO}[INPUT]{RESET} Digite o ID do fio a ser utilizado: "))
         corante_id = int(input(f"\n{AMARELO}[INPUT]{RESET} Digite o ID do corante a ser utilizado: "))
 
         cursor.execute("""
-            SELECT Fio.metragem, Fio.tipo_fio_id, TipoFio.cor, Fio.estoque
-            FROM Fio
-            JOIN TipoFio ON Fio.tipo_fio_id = TipoFio.id
-            WHERE Fio.id = %s AND Fio.em_estoque = TRUE
+            SELECT F.metragem, F.tipo_fio_id, TipoFio.cor, F.estoque, E.quantidade, E.em_estoque
+            FROM Fio F
+            JOIN TipoFio ON F.tipo_fio_id = TipoFio.id
+            JOIN Estoque E ON E.id = F.estoque
+            WHERE F.id = %s AND E.em_estoque = TRUE
         """, (fio_id,))
         fio = cursor.fetchone()
 
         cursor.execute("""
-            SELECT Corante.litros, Corante.estoque
-            FROM Corante
-            WHERE Corante.id = %s AND Corante.em_estoque = TRUE
+            SELECT C.litros, C.estoque, E.quantidade, E.em_estoque
+            FROM Corante C
+            JOIN Estoque E ON E.id = C.estoque
+            WHERE C.id = %s AND E.em_estoque = TRUE
         """, (corante_id,))
         corante = cursor.fetchone()
 
@@ -138,12 +151,12 @@ def retirar_material_producao(conn, cursor):
             print(f"\n{VERMELHO}[ERRO]{RESET} Fio ou corante não encontrado ou fora de estoque.")
             return
         
-        if fio[0] < fios_necessarios:
-            print(f"\n{VERMELHO}[ERRO]{RESET} Fio insuficiente. Metragem disponível: {fio[0]} metros.")
+        if fio[4] < fios_necessarios:
+            print(f"\n{VERMELHO}[ERRO]{RESET} Fio insuficiente. Metragem disponível: {fio[4]} metros.")
             return
 
-        if corante[0] < corante_necessario:
-            print(f"\n{VERMELHO}[ERRO]{RESET} Corante insuficiente. Litros disponíveis: {corante[0]} litros.")
+        if corante[2] < corante_necessario:
+            print(f"\n{VERMELHO}[ERRO]{RESET} Corante insuficiente. Litros disponíveis: {corante[2]} litros.")
             return
 
         estoque_fio_id = fio[3]
@@ -161,9 +174,9 @@ def retirar_material_producao(conn, cursor):
         cursor.execute("UPDATE Estoque SET quantidade = %s WHERE id = %s", (nova_quantidade_corante, estoque_corante_id))
 
         if nova_quantidade_fio == 0:
-            cursor.execute("UPDATE Fio SET em_estoque = FALSE WHERE id = %s", (fio_id,))
+            cursor.execute("UPDATE Estoque SET em_estoque = FALSE WHERE id = %s", (estoque_fio_id,))
         if nova_quantidade_corante == 0:
-            cursor.execute("UPDATE Corante SET em_estoque = FALSE WHERE id = %s", (corante_id,))
+            cursor.execute("UPDATE Estoque SET em_estoque = FALSE WHERE id = %s", (estoque_corante_id,))
 
         tipo_fio_id = fio[1]  
         cor_fio = fio[2]  
@@ -263,34 +276,45 @@ def gerar_relatorios(cursor):
         relatorio = input(f"\n{AMARELO}[INPUT]{RESET} Digite o tipo de relatório ({AMARELO}E{RESET}stoque/{AMARELO}P{RESET}rocesso/{AMARELO}I{RESET}nventario): ").strip().upper()[0]
         
         if relatorio == "E":
-            # Seleciona o estoque de fios
             cursor.execute("""
-                SELECT TF.descricao, E.quantidade 
+                SELECT TF.descricao, SUM(E.quantidade), TF.id
                 FROM Estoque E
                 JOIN Fio F ON F.estoque = E.id
                 JOIN TipoFio TF ON F.tipo_fio_id = TF.id
-                WHERE F.em_estoque = TRUE
+                WHERE E.em_estoque = TRUE
+                GROUP BY TF.descricao, TF.id
             """)
             fios = cursor.fetchall()
 
-            # Seleciona o estoque de corantes
             cursor.execute("""
-                SELECT TC.descricao, E.quantidade 
+                SELECT TC.descricao, SUM(E.quantidade) AS total_quantidade, TC.id
                 FROM Estoque E
                 JOIN Corante C ON C.estoque = E.id
                 JOIN TipoCorante TC ON C.tipo_corante_id = TC.id
-                WHERE C.em_estoque = TRUE
+                WHERE E.em_estoque = TRUE
+                GROUP BY TC.descricao, TC.id
             """)
             corantes = cursor.fetchall()
-            
-            print("\nEstoque de fios:")
-            for fio in fios:
-                print(f"Tipo de Fio: {fio[0]}, Quantidade (metros): {fio[1]}")
-                
-            print("\nEstoque de corantes:")
-            for corante in corantes:
-                print(f"Tipo de Corante: {corante[0]}, Quantidade (litros): {corante[1]}")
-        
+
+            print('-' * 130)
+            if fios:
+                print("Estoque de fios:\n")
+                for fio in fios:
+                    print(f"Id do Fio: {fio[2]}, Tipo de Fio: {fio[0]}, Quantidade (metros): {fio[1]}")
+            else:
+                print("Nenhum fio em estoque.")
+                print('-' * 130)
+            print()
+            if corantes:
+                print('-' * 130)
+                print("Estoque de corantes:\n")
+                for corante in corantes:
+                    print(f"Id do corante: {corante[2]}, Tipo de Corante: {corante[0]}, Quantidade (litros): {corante[1]}")
+                print('-' * 130)
+            else:
+                print("Nenhum corante em estoque.")
+                print('-' * 130)
+
         elif relatorio == "P":
             cursor.execute("""
                 SELECT OP.codigo_barra, TF.descricao, TC.descricao, OP.metros_produzidos, OP.data_inicio, OP.litros
@@ -304,12 +328,16 @@ def gerar_relatorios(cursor):
             """)
             processos = cursor.fetchall()
             
-            print("\nRelatório de Processos em Andamento:\n")
-            print('-' * 100)
-            for processo in processos:
-                print(f"Código de Barra: {processo[0]}, Fio: {processo[1]}, Corante: {processo[2]}")
-                print(f"Metros Produzidos: {processo[3]}, Litros utilizados: {processo[5]}, Data Início: {processo[4]}")
-                print('-' * 100)
+            print()
+            print('-' * 130)
+            if processos:
+                for processo in processos:
+                    print(f"Código de Barra: {processo[0]}, Fio: {processo[1]}, Corante: {processo[2]}")
+                    print(f"Metros Produzidos: {processo[3]}, Litros utilizados: {processo[5]}, Data Início: {processo[4]}")
+
+            else:
+                print(f"{VERMELHO}[ERRO]{RESET} Não há Ordens de Produção em andamento!")
+            print('-' * 130)
         
         elif relatorio == "I":
             cursor.execute("""
@@ -320,13 +348,16 @@ def gerar_relatorios(cursor):
                 JOIN TipoCorante TC ON TC.id = PF.tipo_corante_id
             """)
             inventario = cursor.fetchall()
-            
-            print("\nRelatório de Inventário:\n")
-            print('-' * 100)
-            for item in inventario:
-                print(f"Ordem Produção ID: {item[0]}, Metros Produzidos: {item[1]}, Data Início: {item[2]}")
-                print(f"Cor do Fio: {item[3]}, Tipo de Fio: {item[4]}")
-                print('-' * 100)
+
+            print()
+            print('-' * 130)
+            if inventario:
+                print("Relatório de Inventário:\n")
+                for item in inventario:
+                    print(f"Ordem Produção ID: {item[0]}, Metros Produzidos: {item[1]}, Data Início: {item[2]}, Cor do Fio: {item[3]}, Tipo de Fio: {item[4]}")
+            else:
+                print(f"{VERMELHO}[ERRO]{RESET} Não há Ordens de Produção concluídas!")
+            print('-' * 130)
         
         else:
             print(f"\n{VERMELHO}[ERRO]{RESET} Tipo de relatório inválido!")
@@ -378,7 +409,7 @@ def cadastrar_fornecedor(conn, cursor):
 
 try:
     conn = conexao_bd("localhost", "root", "tr%mmanc@p0t&", "industria_textil")
-    cursor = conn.cursor()
+    cursor = conn.cursor(buffered=True)
         
     while True:
         print(f"\n{AMARELO}[MENU]{RESET}Escolha uma opção: \n")
