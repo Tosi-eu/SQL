@@ -59,13 +59,14 @@ CREATE TABLE Corante (
 
 CREATE TABLE OrdemProducao (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    codigo_barra CHAR(12) UNIQUE NOT NULL,
+    codigo_barra CHAR(12) NOT NULL,
     metros_produzidos INTEGER,
     fio_id INT,
     corante_id INT,
     data_inicio TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     status VARCHAR(50) NOT NULL DEFAULT 'Em processamento',
     litros DECIMAL(5,2),
+    CONSTRAINT OP_UN UNIQUE(id, codigo_barra),
     FOREIGN KEY (fio_id) REFERENCES Fio(id) ON DELETE CASCADE,
     FOREIGN KEY (corante_id) REFERENCES Corante(id) ON DELETE CASCADE,
     CONSTRAINT METROS_CK CHECK(METROS_PRODUZIDOS >= 0),
@@ -74,11 +75,11 @@ CREATE TABLE OrdemProducao (
 
 CREATE TABLE ProdutoFinal (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    codigo_barra CHAR(12) UNIQUE NOT NULL,
+    codigo_barra CHAR(12) NOT NULL,
     ordem_producao_id INT,
     tipo_corante_id INT,
     tipo_fio_id INT,
-    CONSTRAINT PROD_FIN_UN UNIQUE(ordem_producao_id, tipo_corante_id, tipo_fio_id),
+    CONSTRAINT PROD_FIN_UN UNIQUE(codigo_barra, ordem_producao_id, tipo_corante_id, tipo_fio_id),
     FOREIGN KEY (ordem_producao_id) REFERENCES OrdemProducao(id) ON DELETE CASCADE,
     FOREIGN KEY (tipo_corante_id) REFERENCES TipoCorante(id) ON DELETE CASCADE,
     FOREIGN KEY (tipo_fio_id) REFERENCES TipoFio(id) ON DELETE CASCADE

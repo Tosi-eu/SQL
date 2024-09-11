@@ -229,8 +229,7 @@ def registrar_producao(conn, cursor):
         print(f"ID: {ordem[0]}")
         print(f"Código de barra: {ordem[1]}")
         print(f"Metros Produzidos: {ordem[2]}")
-        print(f"Fio ID: {ordem[3]} | Código de Barras Fio: {ordem[4]}")
-        print(f"Corante ID: {ordem[5]} | Código de Barras Corante: {ordem[6]}")
+        print(f"Fio ID: {ordem[3]} | Corante ID: {ordem[5]}")
         print(f"Status: {ordem[7]}")
 
         if ordem[7] == 'Concluída':
