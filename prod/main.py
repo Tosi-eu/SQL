@@ -276,30 +276,30 @@ def gerar_relatorios(cursor):
         
         if relatorio == "E":
             cursor.execute("""
-                SELECT TF.descricao, SUM(E.quantidade), TF.id
+                SELECT DISTINCT TF.descricao, TF.id, E.quantidade
                 FROM Estoque E
                 JOIN Fio F ON F.estoque = E.id
                 JOIN TipoFio TF ON F.tipo_fio_id = TF.id
                 WHERE E.em_estoque = TRUE
-                GROUP BY TF.descricao, TF.id
             """)
             fios = cursor.fetchall()
 
             cursor.execute("""
-                SELECT TC.descricao, SUM(E.quantidade) AS total_quantidade, TC.id
+                SELECT DISTINCT TC.descricao, TC.id, E.Quantidade
                 FROM Estoque E
                 JOIN Corante C ON C.estoque = E.id
                 JOIN TipoCorante TC ON C.tipo_corante_id = TC.id
                 WHERE E.em_estoque = TRUE
-                GROUP BY TC.descricao, TC.id
             """)
             corantes = cursor.fetchall()
 
+            print()
             print('-' * 130)
             if fios:
                 print("Estoque de fios:\n")
                 for fio in fios:
-                    print(f"Id do Fio: {fio[2]}, Tipo de Fio: {fio[0]}, Quantidade (metros): {fio[1]}")
+                    print(f"Id do Fio: {fio[1]}, Tipo de Fio: {fio[0]}, Quantidade (metros): {fio[2]}")
+                print('-' * 130)
             else:
                 print("Nenhum fio em estoque.")
                 print('-' * 130)
@@ -308,7 +308,7 @@ def gerar_relatorios(cursor):
                 print('-' * 130)
                 print("Estoque de corantes:\n")
                 for corante in corantes:
-                    print(f"Id do corante: {corante[2]}, Tipo de Corante: {corante[0]}, Quantidade (litros): {corante[1]}")
+                    print(f"Id do corante: {corante[1]}, Tipo de Corante: {corante[0]}, Quantidade (litros): {corante[2]}")
                 print('-' * 130)
             else:
                 print("Nenhum corante em estoque.")
