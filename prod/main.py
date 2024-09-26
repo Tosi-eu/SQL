@@ -296,22 +296,22 @@ def gerar_relatorios(cursor):
             print()
             print('-' * 130)
             if fios:
-                print("Estoque de fios:\n")
+                print(f"{AMARELO}[INFO]{RESET} Estoque de fios:\n")
                 for fio in fios:
                     print(f"Id do Fio: {fio[1]}, Tipo de Fio: {fio[0]}, Quantidade (metros): {fio[2]}")
                 print('-' * 130)
             else:
-                print("Nenhum fio em estoque.")
+                print(f"{AMARELO}[INFO]{RESET} Nenhum fio em estoque.")
                 print('-' * 130)
             print()
             if corantes:
                 print('-' * 130)
-                print("Estoque de corantes:\n")
+                print(f"{AMARELO}[INFO]{RESET} Estoque de corantes:\n")
                 for corante in corantes:
                     print(f"Id do corante: {corante[1]}, Tipo de Corante: {corante[0]}, Quantidade (litros): {corante[2]}")
                 print('-' * 130)
             else:
-                print("Nenhum corante em estoque.")
+                print(f"{AMARELO}[INFO]{RESET} Nenhum corante em estoque.")
                 print('-' * 130)
 
         elif relatorio == "P":
@@ -351,7 +351,7 @@ def gerar_relatorios(cursor):
             print()
             print('-' * 130)
             if inventario:
-                print("Relatório de Inventário:\n")
+                print(f"{AMARELO}[INFO]{RESET} Relatório de Inventário:\n")
                 for item in inventario:
                     print(f"Ordem Produção ID: {item[0]}, Metros Produzidos: {item[1]}, Data Início: {item[2]}, Cor do Fio: {item[3]}, Tipo de Fio: {item[4]}")
             else:

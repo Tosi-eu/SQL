@@ -55,11 +55,11 @@ public class DBFuncionalidades {
             jtAreaDeStatus.setText("Erro na consulta: \"" + s + "\"");
         }        
     }
-    public void preencheDadosTabela(JTextArea jtext, String nomeTabela)
+    public void preencheStatusTabela(JTextArea jtext, String nomeTabela)
     {   
         try {
             stmt = connection.createStatement();
-            String s = "SELECT TABLE_NAME, COLUMN_NAME, COLUMN_ID, DATA_TYPE, NULABLE FROM USER_TAB_COLUMNS " + "WHERE UPPER(table_name)='" + nomeTabela.toUpperCase() + "'";
+            String s = "SELECT TABLE_NAME, COLUMN_NAME, COLUMN_ID, DATA_TYPE, NULLABLE FROM USER_TAB_COLUMNS " + "WHERE UPPER(table_name)='" + nomeTabela.toUpperCase() + "'";
             rs = stmt.executeQuery(s);
             while(rs.next())
             {
@@ -76,11 +76,32 @@ public class DBFuncionalidades {
            jtAreaDeStatus.setText(ex.getMessage());
         }
     }
-    
-    public void exibeDados(JTable tATable, String sTableName){
-        /*Aqui preencho a tabela com os dados*/
+    public void preencheColunasDadosTabela(JTable tTable, String nomeTabela) {   
+        try {
+            stmt = connection.createStatement();
+            
+            String s = "SELECT * FROM " + nomeTabela;
+            rs = stmt.executeQuery(s);
+            javax.swing.table.DefaultTableModel model = new javax.swing.table.DefaultTableModel();
+
+            int columnCount = rs.getMetaData().getColumnCount();
+            for (int i = 1; i <= columnCount; i++) {
+                model.addColumn(rs.getMetaData().getColumnName(i));
+            }
+
+            while (rs.next()) {
+                Object[] row = new Object[columnCount];
+                for (int i = 1; i <= columnCount; i++) {
+                    row[i - 1] = rs.getObject(i);
+                }
+                model.addRow(row);
+            }
+
+            tTable.setModel(model);
+            stmt.close();
+        } catch (SQLException ex) {
+            jtAreaDeStatus.setText(ex.getMessage());
+        }
     }
-    //public void preencheComboBoxComRestricoesDeCheck
-    //public void preencheComboBoxComValoresReferenciados
-    //
+
 }
