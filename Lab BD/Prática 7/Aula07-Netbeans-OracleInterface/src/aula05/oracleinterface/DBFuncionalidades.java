@@ -103,5 +103,58 @@ public class DBFuncionalidades {
             jtAreaDeStatus.setText(ex.getMessage());
         }
     }
+    public void inserirDadosTabela(String nomeTabela, Object[] valores) {
+    try {
+        stmt = connection.createStatement();
+        
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < valores.length; i++) {
+            sb.append("'").append(valores[i]).append("'");
+            if (i < valores.length - 1) {
+                sb.append(", ");
+            }
+        }
+        
+        String s = "INSERT INTO " + nomeTabela + " VALUES (" + sb.toString() + ")";
+        stmt.executeUpdate(s);
+        jtAreaDeStatus.setText("Dados inseridos com sucesso!");
+        stmt.close();
+    } catch (SQLException ex) {
+        jtAreaDeStatus.setText("Erro ao inserir dados: " + ex.getMessage());
+    }
+}
+    public int obterQuantidadeColunas(String nomeTabela) {
+        int columnCount = 0;
+        try {
+            stmt = connection.createStatement();
+            String s = "SELECT * FROM " + nomeTabela + " WHERE ROWNUM = 1";
+            rs = stmt.executeQuery(s);
+
+            columnCount = rs.getMetaData().getColumnCount();
+            stmt.close();
+        } catch (SQLException ex) {
+            jtAreaDeStatus.setText("Erro ao obter quantidade de colunas: " + ex.getMessage());
+        }
+        return columnCount;
+    }
+
+    public String[] obterNomesDeColunas(String nomeTabela) {
+    String[] nomesColunas = null;
+    try {
+        stmt = connection.createStatement();
+        String s = "SELECT * FROM " + nomeTabela + " WHERE ROWNUM = 1";
+        rs = stmt.executeQuery(s);
+        
+        int columnCount = rs.getMetaData().getColumnCount();
+        nomesColunas = new String[columnCount];
+        for (int i = 1; i <= columnCount; i++) {
+            nomesColunas[i - 1] = rs.getMetaData().getColumnName(i);
+        }
+        stmt.close();
+    } catch (SQLException ex) {
+        jtAreaDeStatus.setText("Erro ao obter nomes de colunas: " + ex.getMessage());
+    }
+    return nomesColunas;
+}
 
 }

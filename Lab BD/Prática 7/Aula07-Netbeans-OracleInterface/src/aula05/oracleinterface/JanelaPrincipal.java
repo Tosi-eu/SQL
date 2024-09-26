@@ -25,7 +25,7 @@ import javax.swing.JTextField;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.JFileChooser;
 import javax.swing.table.DefaultTableModel;
-
+import java.sql.SQLException;
 /**
  *
  * @author junio
@@ -42,6 +42,7 @@ public class JanelaPrincipal {
     JTable jt;
     JPanel pPainelDeInsecaoDeDados;
     DBFuncionalidades bd;
+    JTextField[] inputFields;
 
     public void ExibeJanelaPrincipal() {
         /*Janela*/
@@ -86,16 +87,10 @@ public class JanelaPrincipal {
         JScrollPane jsp = new JScrollPane(jt);
         pPainelDeExibicaoDeDados.add(jsp);
 
-        /*Tab de inserção*/
         pPainelDeInsecaoDeDados = new JPanel();
-        pPainelDeInsecaoDeDados.setLayout(new GridLayout(3, 2));
-        pPainelDeInsecaoDeDados.add(new JLabel("Coluna1"));
-        pPainelDeInsecaoDeDados.add(new JTextField("Digite aqui"));
-        pPainelDeInsecaoDeDados.add(new JLabel("Coluna2"));
-        pPainelDeInsecaoDeDados.add(new JTextField("Digite aqui"));
-        pPainelDeInsecaoDeDados.add(new JLabel("Coluna3"));
-        pPainelDeInsecaoDeDados.add(new JTextField("Digite aqui"));
+        pPainelDeInsecaoDeDados.setLayout(new GridLayout(0, 2));
         tabbedPane.add(pPainelDeInsecaoDeDados, "Inserção");
+        inputFields = new JTextField[0];
 
         j.setVisible(true);
 
@@ -114,8 +109,47 @@ public class JanelaPrincipal {
                 String tabelaSelecionada = (String) jcTemp.getSelectedItem();
                 bd.preencheStatusTabela(jtAreaDeStatus, tabelaSelecionada);
                 bd.preencheColunasDadosTabela(jt, tabelaSelecionada);
+                preencheCamposDeInsercao(tabelaSelecionada);
             }
         });
+    }
+
+    private void preencheCamposDeInsercao(String nomeTabela) {
+        pPainelDeInsecaoDeDados.removeAll();
+
+        int columnCount = bd.obterQuantidadeColunas(nomeTabela);
+        String[] nomesColunas = bd.obterNomesDeColunas(nomeTabela);
+        
+        if (nomesColunas == null || nomesColunas.length == 0) {
+            jtAreaDeStatus.setText("Nenhuma coluna encontrada para a tabela " + nomeTabela);
+            return;
+        }
+        inputFields = new JTextField[columnCount];
+        for (int i = 0; i < columnCount; i++) {
+            JLabel label = new JLabel(nomesColunas[i]);
+            JTextField inputField = new JTextField("Digite aqui");
+            
+            inputFields[i] = inputField;
+            pPainelDeInsecaoDeDados.add(label);
+            pPainelDeInsecaoDeDados.add(inputField);
+        }
+        
+        JButton botaoInserir = new JButton("Inserir Dados");
+        botaoInserir.addActionListener((ActionEvent e) -> {
+            inserirDados(nomeTabela);
+        });
+        
+        pPainelDeInsecaoDeDados.add(botaoInserir);
+        pPainelDeInsecaoDeDados.revalidate();
+        pPainelDeInsecaoDeDados.repaint();
+    }
+
+    private void inserirDados(String nomeTabela) {
+        Object[] values = new Object[inputFields.length];
+        for (int i = 0; i < inputFields.length; i++) {
+            values[i] = inputFields[i].getText();
+        }
+        bd.inserirDadosTabela(nomeTabela, values);
     }
 
     private void exportarParaCSV() {
