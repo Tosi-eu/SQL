@@ -71,8 +71,7 @@ public class DBFuncionalidades {
                         + rs.getString("NULLABLE"));
             }
             stmt.close();
-        } catch (SQLException ex) {
-            
+        } catch (SQLException ex) {   
            jtAreaDeStatus.setText(ex.getMessage());
         }
     }

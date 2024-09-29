@@ -150,6 +150,7 @@ public class JanelaPrincipal {
             values[i] = inputFields[i].getText();
         }
         bd.inserirDadosTabela(nomeTabela, values);
+        jtAreaDeStatus.setText("Dados inseridos com sucesso na tabela " + nomeTabela);
     }
 
     private void exportarParaCSV() {
