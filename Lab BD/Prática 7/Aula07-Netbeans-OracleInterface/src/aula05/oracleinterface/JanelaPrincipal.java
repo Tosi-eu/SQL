@@ -26,6 +26,9 @@ import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.JFileChooser;
 import javax.swing.table.DefaultTableModel;
 import java.sql.SQLException;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 /**
  *
  * @author junio
@@ -114,36 +117,68 @@ public class JanelaPrincipal {
         });
     }
 
-    private void preencheCamposDeInsercao(String nomeTabela) {
-        pPainelDeInsecaoDeDados.removeAll();
+  private void preencheCamposDeInsercao(String nomeTabela) {
+    System.out.println("Tabela: " + nomeTabela);
+    pPainelDeInsecaoDeDados.removeAll();
 
-        int columnCount = bd.obterQuantidadeColunas(nomeTabela);
-        String[] nomesColunas = bd.obterNomesDeColunas(nomeTabela);
-        
-        if (nomesColunas == null || nomesColunas.length == 0) {
-            jtAreaDeStatus.setText("Nenhuma coluna encontrada para a tabela " + nomeTabela);
-            return;
-        }
-        inputFields = new JTextField[columnCount];
-        for (int i = 0; i < columnCount; i++) {
-            JLabel label = new JLabel(nomesColunas[i]);
-            JTextField inputField = new JTextField("Digite aqui");
-            
-            inputFields[i] = inputField;
-            pPainelDeInsecaoDeDados.add(label);
-            pPainelDeInsecaoDeDados.add(inputField);
-        }
-        
-        JButton botaoInserir = new JButton("Inserir Dados");
-        botaoInserir.addActionListener((ActionEvent e) -> {
-            inserirDados(nomeTabela);
-        });
-        
-        pPainelDeInsecaoDeDados.add(botaoInserir);
-        pPainelDeInsecaoDeDados.revalidate();
-        pPainelDeInsecaoDeDados.repaint();
+    int columnCount = bd.obterQuantidadeColunas(nomeTabela);
+    String[] nomesColunas = bd.obterNomesDeColunas(nomeTabela);
+
+    if (nomesColunas == null || nomesColunas.length == 0) {
+        jtAreaDeStatus.setText("Nenhuma coluna encontrada para a tabela " + nomeTabela);
+        return;
     }
 
+    List<String> searchConditions = bd.obtemCheckIn(nomeTabela);
+
+    inputFields = new JTextField[columnCount];
+    for (int i = 0; i < columnCount; i++) {
+        JLabel label = new JLabel(nomesColunas[i]);
+        boolean colunaComConstraint = false;
+
+        if (searchConditions != null) { 
+            for (String condition : searchConditions) {
+                if (condition.contains(nomesColunas[i]) && condition.contains("IN")) {
+                    colunaComConstraint = true;
+                    JComboBox<String> inputField = new JComboBox<>();
+
+                    try {
+                        String valores = condition.substring(condition.indexOf("IN") + 2).trim();
+                        valores = valores.substring(valores.indexOf('(') + 1, valores.lastIndexOf(')'));
+                        
+                        String[] valoresArray = valores.split(",");
+                        for (String valor : valoresArray) {
+                            inputField.addItem(valor.trim().replace("'", "")); 
+                        }
+                    } catch (StringIndexOutOfBoundsException e) {
+                        System.out.println("Erro ao processar a cláusula IN: " + condition);
+                    }
+                    
+                    pPainelDeInsecaoDeDados.add(label);
+                    pPainelDeInsecaoDeDados.add(inputField);
+                    break; 
+                }
+            }
+        }
+
+        if (!colunaComConstraint) {
+            JTextField inputFieldTexto = new JTextField("Digite aqui");
+            inputFields[i] = inputFieldTexto;
+            pPainelDeInsecaoDeDados.add(label);
+            pPainelDeInsecaoDeDados.add(inputFieldTexto);
+        }
+    }
+
+    JButton botaoInserir = new JButton("Inserir Dados");
+    botaoInserir.addActionListener((ActionEvent e) -> {
+        inserirDados(nomeTabela);
+    });
+    
+    pPainelDeInsecaoDeDados.add(botaoInserir);
+    pPainelDeInsecaoDeDados.revalidate();
+    pPainelDeInsecaoDeDados.repaint(); 
+}
+       
     private void inserirDados(String nomeTabela) {
         Object[] values = new Object[inputFields.length];
         for (int i = 0; i < inputFields.length; i++) {

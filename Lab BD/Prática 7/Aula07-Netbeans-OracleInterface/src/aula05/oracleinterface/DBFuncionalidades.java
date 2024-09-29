@@ -9,6 +9,9 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.PreparedStatement;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.JComboBox;
@@ -155,5 +158,33 @@ public class DBFuncionalidades {
     }
     return nomesColunas;
 }
+    
+public List<String> obtemCheckIn(String nomeTabela) {
+    List<String> searchConditions = new ArrayList<>();
 
+    String sql = "SELECT SEARCH_CONDITION_VC FROM USER_CONSTRAINTS " +
+                 "WHERE table_name = ? AND constraint_type = 'C' " +
+                 "AND SEARCH_CONDITION_VC LIKE '%IN%'";
+
+    try {
+        PreparedStatement pstmt = connection.prepareStatement(sql);
+        pstmt.setString(1, nomeTabela);
+        
+        rs = pstmt.executeQuery();
+        
+        while (rs.next()) {
+            String condition = rs.getString("SEARCH_CONDITION_VC");
+        if (condition.matches("(?i).*\\bIN\\s*\\(.*")) { 
+            searchConditions.add(condition);}
+        }
+    } catch (SQLException ex) {
+        System.out.println("Erro ao obter CHECK IN: " + ex.getMessage());
+    }
+    
+    System.out.println(searchConditions);
+    return searchConditions.isEmpty() ? null : searchConditions;
+}
+
+
+   
 }
