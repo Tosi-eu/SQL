@@ -1,6 +1,7 @@
 package aula05.oracleinterface;
 
 import java.awt.BorderLayout;
+import java.awt.Component;
 import java.awt.GridLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -45,22 +46,18 @@ public class JanelaPrincipal {
     JTable jt;
     JPanel pPainelDeInsecaoDeDados;
     DBFuncionalidades bd;
-    JTextField[] inputFields;
 
     public void ExibeJanelaPrincipal() {
-        /*Janela*/
         j = new JFrame("ICMC-USP - SCC0241 - Pratica 7");
         j.setSize(700, 500);
         j.setLayout(new BorderLayout());
         j.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
-        /*Painel da parte superior (north) - com combobox e outras informações*/
         pPainelDeCima = new JPanel();
         j.add(pPainelDeCima, BorderLayout.NORTH);
         jc = new JComboBox<>();
         pPainelDeCima.add(jc);
 
-        // Botão para exportar dados para CSV
         JButton botaoExportar = new JButton("Exportar CSV");
         botaoExportar.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
@@ -93,7 +90,6 @@ public class JanelaPrincipal {
         pPainelDeInsecaoDeDados = new JPanel();
         pPainelDeInsecaoDeDados.setLayout(new GridLayout(0, 2));
         tabbedPane.add(pPainelDeInsecaoDeDados, "Inserção");
-        inputFields = new JTextField[0];
 
         j.setVisible(true);
 
@@ -117,7 +113,7 @@ public class JanelaPrincipal {
         });
     }
 
-  private void preencheCamposDeInsercao(String nomeTabela) {
+private void preencheCamposDeInsercao(String nomeTabela) {
     System.out.println("Tabela: " + nomeTabela);
     pPainelDeInsecaoDeDados.removeAll();
 
@@ -130,8 +126,8 @@ public class JanelaPrincipal {
     }
 
     List<String> searchConditions = bd.obtemCheckIn(nomeTabela);
+    Object[] inputFields = new Object[columnCount]; // Armazena os campos (não os valores)
 
-    inputFields = new JTextField[columnCount];
     for (int i = 0; i < columnCount; i++) {
         JLabel label = new JLabel(nomesColunas[i]);
         boolean colunaComConstraint = false;
@@ -156,38 +152,40 @@ public class JanelaPrincipal {
                     
                     pPainelDeInsecaoDeDados.add(label);
                     pPainelDeInsecaoDeDados.add(inputField);
+                    inputFields[i] = inputField;
                     break; 
                 }
             }
         }
 
         if (!colunaComConstraint) {
-            JTextField inputFieldTexto = new JTextField("Digite aqui");
-            inputFields[i] = inputFieldTexto;
+            JTextField inputFieldTexto = new JTextField();
             pPainelDeInsecaoDeDados.add(label);
             pPainelDeInsecaoDeDados.add(inputFieldTexto);
+            inputFields[i] = inputFieldTexto; 
         }
     }
 
     JButton botaoInserir = new JButton("Inserir Dados");
     botaoInserir.addActionListener((ActionEvent e) -> {
-        inserirDados(nomeTabela);
+        Object[] valores = new Object[columnCount];
+
+        for (int i = 0; i < columnCount; i++) {
+            if (inputFields[i] instanceof JTextField) {
+                valores[i] = ((JTextField) inputFields[i]).getText(); 
+            } else if (inputFields[i] instanceof JComboBox) {
+                valores[i] = ((JComboBox<?>) inputFields[i]).getSelectedItem();
+            }
+        }
+
+        bd.inserirDadosTabela(nomeTabela, valores); 
     });
     
     pPainelDeInsecaoDeDados.add(botaoInserir);
     pPainelDeInsecaoDeDados.revalidate();
     pPainelDeInsecaoDeDados.repaint(); 
 }
-       
-    private void inserirDados(String nomeTabela) {
-        Object[] values = new Object[inputFields.length];
-        for (int i = 0; i < inputFields.length; i++) {
-            values[i] = inputFields[i].getText();
-        }
-        bd.inserirDadosTabela(nomeTabela, values);
-        jtAreaDeStatus.setText("Dados inseridos com sucesso na tabela " + nomeTabela);
-    }
-
+  
     private void exportarParaCSV() {
         JFileChooser fileChooser = new JFileChooser();
         fileChooser.setDialogTitle("Salvar como CSV");

@@ -78,6 +78,7 @@ public class DBFuncionalidades {
            jtAreaDeStatus.setText(ex.getMessage());
         }
     }
+    
     public void preencheColunasDadosTabela(JTable tTable, String nomeTabela) {   
         try {
             stmt = connection.createStatement();
@@ -105,19 +106,21 @@ public class DBFuncionalidades {
             jtAreaDeStatus.setText(ex.getMessage());
         }
     }
+    
     public void inserirDadosTabela(String nomeTabela, Object[] valores) {
     try {
         stmt = connection.createStatement();
         
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < valores.length; i++) {
+            System.out.println(valores[i]);
             sb.append("'").append(valores[i]).append("'");
             if (i < valores.length - 1) {
                 sb.append(", ");
             }
         }
         
-        String s = "INSERT INTO " + nomeTabela + " VALUES (" + sb.toString() + ")";
+        String s = "INSERT INTO " + nomeTabela + " VALUES (" + sb + ")";
         stmt.executeUpdate(s);
         jtAreaDeStatus.setText("Dados inseridos com sucesso!");
         stmt.close();
@@ -125,6 +128,7 @@ public class DBFuncionalidades {
         jtAreaDeStatus.setText("Erro ao inserir dados: " + ex.getMessage());
     }
 }
+    
     public int obterQuantidadeColunas(String nomeTabela) {
         int columnCount = 0;
         try {
