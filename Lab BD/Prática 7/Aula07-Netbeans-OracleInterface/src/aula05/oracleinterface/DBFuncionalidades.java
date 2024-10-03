@@ -211,7 +211,6 @@ public List<String> obtemCheckIn(String nomeTabela) {
     return searchConditions.isEmpty() ? null : searchConditions;
 }
 
-<<<<<<< HEAD
 public List<String[]> obterConstraintsChaveEstrangeira(String nomeTabela) {
     List<String[]> foreignKeys = new ArrayList<>();
     String sql = "SELECT a.table_name child_table, a.column_name child_column, a.constraint_name, " +
@@ -241,7 +240,7 @@ public List<String[]> obterConstraintsChaveEstrangeira(String nomeTabela) {
     
     return foreignKeys;
     }
-=======
+    
 public void exportarDDLParaArquivo() {
     String ddlOutput = "";
     JFileChooser fileChooser = new JFileChooser();
@@ -256,13 +255,11 @@ public void exportarDDLParaArquivo() {
         }
 
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(arquivoSQL, StandardCharsets.UTF_8))) {
-            // Definir as tabelas na ordem correta
             String[] tabelas = {"L01_PAIS", "L02_OLIMPIADA", "L03_MODALIDADE", 
                                 "L04_LOCAL", "L05_DISPUTA", "L06_ATLETA", 
                                 "L07_JOGA", "L08_PATROCINADOR", "L09_PATROCINA", 
                                 "L10_MIDIA", "L11_TRANSMITE"};
-            
-            // Gerar o DDL de cada tabela
+
             for (String tabela : tabelas) {
                 Statement stmt = connection.createStatement();
                 ResultSet rs = stmt.executeQuery(
@@ -280,7 +277,4 @@ public void exportarDDLParaArquivo() {
         }
     }
 }
-
-  
->>>>>>> 31f7db35e552000cd2b3a3009cacc717a8f82a54
 }
