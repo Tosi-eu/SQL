@@ -147,7 +147,6 @@ private void preencheCamposDeInsercao(String nomeTabela) {
                 isForeignKey = true;
                 JComboBox<String> comboBox = new JComboBox<>();
                 
-                // Preencha a comboBox com valores da tabela referenciada
                 List<String> valoresFK = bd.obterValoresDeColuna(fk[1], fk[2]); // parent_table e parent_column
                 for (String valor : valoresFK) {
                     comboBox.addItem(valor);
