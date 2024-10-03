@@ -4,6 +4,11 @@
  */
 package aula05.oracleinterface;
 
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
@@ -12,11 +17,11 @@ import java.sql.Statement;
 import java.sql.PreparedStatement;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import javax.swing.JComboBox;
+import javax.swing.JFileChooser;
 import javax.swing.JTable;
 import javax.swing.JTextArea;
+import javax.swing.filechooser.FileNameExtensionFilter;
 
 /**
  *
@@ -206,6 +211,7 @@ public List<String> obtemCheckIn(String nomeTabela) {
     return searchConditions.isEmpty() ? null : searchConditions;
 }
 
+<<<<<<< HEAD
 public List<String[]> obterConstraintsChaveEstrangeira(String nomeTabela) {
     List<String[]> foreignKeys = new ArrayList<>();
     String sql = "SELECT a.table_name child_table, a.column_name child_column, a.constraint_name, " +
@@ -235,4 +241,46 @@ public List<String[]> obterConstraintsChaveEstrangeira(String nomeTabela) {
     
     return foreignKeys;
     }
+=======
+public void exportarDDLParaArquivo() {
+    String ddlOutput = "";
+    JFileChooser fileChooser = new JFileChooser();
+    fileChooser.setDialogTitle("Salvar DDL como arquivo SQL");
+    fileChooser.setFileFilter(new FileNameExtensionFilter("SQL Files", "sql"));
+    
+    int userSelection = fileChooser.showSaveDialog(null);
+    if (userSelection == JFileChooser.APPROVE_OPTION) {
+        File arquivoSQL = fileChooser.getSelectedFile();
+        if (!arquivoSQL.getAbsolutePath().endsWith(".sql")) {
+            arquivoSQL = new File(arquivoSQL.getAbsolutePath() + ".sql");
+        }
+
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(arquivoSQL, StandardCharsets.UTF_8))) {
+            // Definir as tabelas na ordem correta
+            String[] tabelas = {"L01_PAIS", "L02_OLIMPIADA", "L03_MODALIDADE", 
+                                "L04_LOCAL", "L05_DISPUTA", "L06_ATLETA", 
+                                "L07_JOGA", "L08_PATROCINADOR", "L09_PATROCINA", 
+                                "L10_MIDIA", "L11_TRANSMITE"};
+            
+            // Gerar o DDL de cada tabela
+            for (String tabela : tabelas) {
+                Statement stmt = connection.createStatement();
+                ResultSet rs = stmt.executeQuery(
+                    "SELECT DBMS_METADATA.GET_DDL('TABLE', '" + tabela + "') AS DDL FROM DUAL"
+                );
+                while (rs.next()) {
+                    ddlOutput = rs.getString("DDL");
+                    writer.write(ddlOutput + ";\n\n");
+                }
+                stmt.close();
+            }
+            jtAreaDeStatus.setText("DDL exportado com sucesso para: " + arquivoSQL.getAbsolutePath());
+        } catch (SQLException | IOException ex) {
+            jtAreaDeStatus.setText("Erro ao gerar ou exportar o DDL: " + ex.getMessage());
+        }
+    }
+}
+
+  
+>>>>>>> 31f7db35e552000cd2b3a3009cacc717a8f82a54
 }

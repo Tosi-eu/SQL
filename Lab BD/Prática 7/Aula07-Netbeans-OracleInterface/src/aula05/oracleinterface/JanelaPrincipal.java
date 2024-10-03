@@ -57,6 +57,16 @@ public class JanelaPrincipal {
         j.add(pPainelDeCima, BorderLayout.NORTH);
         jc = new JComboBox<>();
         pPainelDeCima.add(jc);
+        
+        // Adicionando o botão "Exportar DDL"
+        JButton botaoGerarDDL = new JButton("Exportar DDL");
+        botaoGerarDDL.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent e) {
+            bd.exportarDDLParaArquivo();  // Chama o método de exportar DDL
+        }
+        });
+        pPainelDeCima.add(botaoGerarDDL);
+
 
         JButton botaoExportar = new JButton("Exportar CSV");
         botaoExportar.addActionListener(new ActionListener() {
@@ -224,4 +234,5 @@ private void preencheCamposDeInsercao(String nomeTabela) {
             }
         }
     }
+
 }
