@@ -211,7 +211,6 @@ public List<String> obtemCheckIn(String nomeTabela) {
     return searchConditions.isEmpty() ? null : searchConditions;
 }
 
-<<<<<<< HEAD
 public List<String[]> obterConstraintsChaveEstrangeira(String nomeTabela) {
     List<String[]> foreignKeys = new ArrayList<>();
     String sql = "SELECT a.table_name child_table, a.column_name child_column, a.constraint_name, " +
@@ -241,7 +240,7 @@ public List<String[]> obterConstraintsChaveEstrangeira(String nomeTabela) {
     
     return foreignKeys;
     }
-=======
+
 public void exportarDDLParaArquivo() {
     String ddlOutput = "";
     JFileChooser fileChooser = new JFileChooser();
@@ -280,7 +279,4 @@ public void exportarDDLParaArquivo() {
         }
     }
 }
-
-  
->>>>>>> 31f7db35e552000cd2b3a3009cacc717a8f82a54
 }

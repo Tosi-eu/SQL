@@ -135,36 +135,68 @@ private void preencheCamposDeInsercao(String nomeTabela) {
         return;
     }
 
-    List<String[]> foreignKeys = bd.obterConstraintsChaveEstrangeira(nomeTabela);
-    Object[] inputFields = new Object[columnCount]; 
+    List<String> searchConditions = bd.obtemCheckIn(nomeTabela); // Método que obtém constraints CHECK IN
+    List<String[]> foreignKeys = bd.obterConstraintsChaveEstrangeira(nomeTabela); // Obtém chaves estrangeiras
+    Object[] inputFields = new Object[columnCount];
 
     for (int i = 0; i < columnCount; i++) {
         JLabel label = new JLabel(nomesColunas[i]);
-        boolean isForeignKey = false;
+        boolean campoComConstraint = false;
 
-        for (String[] fk : foreignKeys) {
-            if (fk[0].equals(nomesColunas[i])) {
-                isForeignKey = true;
-                JComboBox<String> comboBox = new JComboBox<>();
-                
-                // Preencha a comboBox com valores da tabela referenciada
-                List<String> valoresFK = bd.obterValoresDeColuna(fk[1], fk[2]); // parent_table e parent_column
-                for (String valor : valoresFK) {
-                    comboBox.addItem(valor);
+        // Verifica se a coluna tem constraint CHECK IN
+        if (searchConditions != null) {
+            for (String condition : searchConditions) {
+                if (condition.contains(nomesColunas[i]) && condition.contains("IN")) {
+                    campoComConstraint = true;
+                    JComboBox<String> inputField = new JComboBox<>();
+
+                    try {
+                        String valores = condition.substring(condition.indexOf("IN") + 2).trim();
+                        valores = valores.substring(valores.indexOf('(') + 1, valores.lastIndexOf(')'));
+
+                        String[] valoresArray = valores.split(",");
+                        for (String valor : valoresArray) {
+                            inputField.addItem(valor.trim().replace("'", ""));
+                        }
+                    } catch (StringIndexOutOfBoundsException e) {
+                        System.out.println("Erro ao processar a cláusula IN: " + condition);
+                    }
+
+                    pPainelDeInsecaoDeDados.add(label);
+                    pPainelDeInsecaoDeDados.add(inputField);
+                    inputFields[i] = inputField;
+                    break;
                 }
-                
-                pPainelDeInsecaoDeDados.add(label);
-                pPainelDeInsecaoDeDados.add(comboBox);
-                inputFields[i] = comboBox;
-                break;
             }
         }
 
-        if (!isForeignKey) {
-            JTextField textField = new JTextField();
-            pPainelDeInsecaoDeDados.add(label);
-            pPainelDeInsecaoDeDados.add(textField);
-            inputFields[i] = textField;
+        // Se não for constraint CHECK IN, verifica se é chave estrangeira
+        if (!campoComConstraint) {
+            boolean isForeignKey = false;
+
+            for (String[] fk : foreignKeys) {
+                if (fk[0].equals(nomesColunas[i])) { // Se a coluna for chave estrangeira
+                    isForeignKey = true;
+                    JComboBox<String> comboBox = new JComboBox<>();
+
+                    List<String> valoresFK = bd.obterValoresDeColuna(fk[1], fk[2]); // parent_table e parent_column
+                    for (String valor : valoresFK) {
+                        comboBox.addItem(valor);
+                    }
+
+                    pPainelDeInsecaoDeDados.add(label);
+                    pPainelDeInsecaoDeDados.add(comboBox);
+                    inputFields[i] = comboBox;
+                    break;
+                }
+            }
+
+            if (!isForeignKey) {
+                JTextField textField = new JTextField();
+                pPainelDeInsecaoDeDados.add(label);
+                pPainelDeInsecaoDeDados.add(textField);
+                inputFields[i] = textField;
+            }
         }
     }
 
@@ -174,18 +206,18 @@ private void preencheCamposDeInsercao(String nomeTabela) {
 
         for (int i = 0; i < columnCount; i++) {
             if (inputFields[i] instanceof JTextField) {
-                valores[i] = ((JTextField) inputFields[i]).getText(); 
+                valores[i] = ((JTextField) inputFields[i]).getText();
             } else if (inputFields[i] instanceof JComboBox) {
                 valores[i] = ((JComboBox<?>) inputFields[i]).getSelectedItem();
             }
         }
 
-        bd.inserirDadosTabela(nomeTabela, valores); 
+        bd.inserirDadosTabela(nomeTabela, valores);
     });
 
     pPainelDeInsecaoDeDados.add(botaoInserir);
     pPainelDeInsecaoDeDados.revalidate();
-    pPainelDeInsecaoDeDados.repaint(); 
+    pPainelDeInsecaoDeDados.repaint();
 }
   
     private void exportarParaCSV() {
