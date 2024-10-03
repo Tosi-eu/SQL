@@ -79,6 +79,23 @@ public class DBFuncionalidades {
         }
     }
     
+    public List<String> obterValoresDeColuna(String tabela, String coluna) {
+    List<String> valores = new ArrayList<>();
+    String sql = "SELECT " + coluna + " FROM " + tabela;
+
+    try (Statement stmt = connection.createStatement()) {
+        ResultSet rs = stmt.executeQuery(sql);
+
+        while (rs.next()) {
+            valores.add(rs.getString(1));
+        }
+    } catch (SQLException e) {
+        jtAreaDeStatus.setText("Erro ao buscar valores da coluna: " + e.getMessage());
+    }
+
+    return valores;
+}
+    
     public void preencheColunasDadosTabela(JTable tTable, String nomeTabela) {   
         try {
             stmt = connection.createStatement();
@@ -189,6 +206,33 @@ public List<String> obtemCheckIn(String nomeTabela) {
     return searchConditions.isEmpty() ? null : searchConditions;
 }
 
+public List<String[]> obterConstraintsChaveEstrangeira(String nomeTabela) {
+    List<String[]> foreignKeys = new ArrayList<>();
+    String sql = "SELECT a.table_name child_table, a.column_name child_column, a.constraint_name, " +
+                 "b.table_name parent_table, b.column_name parent_column " +
+                 "FROM user_cons_columns a " +
+                 "JOIN user_constraints c ON a.owner = c.owner AND a.constraint_name = c.constraint_name " +
+                 "JOIN user_cons_columns b ON c.owner = b.owner AND c.r_constraint_name = b.constraint_name " +
+                 "WHERE c.constraint_type = 'R' " +
+                 "AND UPPER(a.table_name) = UPPER(?) " +
+                 "AND a.position = b.position";
 
-   
+    try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+        stmt.setString(1, nomeTabela.toUpperCase());
+        ResultSet rs = stmt.executeQuery();
+        
+        while (rs.next()) {
+            String[] fkInfo = new String[4];
+            fkInfo[0] = rs.getString("child_column");
+            fkInfo[1] = rs.getString("parent_table");
+            fkInfo[2] = rs.getString("parent_column");
+            fkInfo[3] = rs.getString("constraint_name");
+            foreignKeys.add(fkInfo);
+        }
+    } catch (SQLException e) {
+        jtAreaDeStatus.setText("Erro ao buscar constraints de chave estrangeira: " + e.getMessage());
+    }
+    
+    return foreignKeys;
+    }
 }

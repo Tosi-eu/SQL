@@ -125,44 +125,36 @@ private void preencheCamposDeInsercao(String nomeTabela) {
         return;
     }
 
-    List<String> searchConditions = bd.obtemCheckIn(nomeTabela);
-    Object[] inputFields = new Object[columnCount]; // Armazena os campos (não os valores)
+    List<String[]> foreignKeys = bd.obterConstraintsChaveEstrangeira(nomeTabela);
+    Object[] inputFields = new Object[columnCount]; 
 
     for (int i = 0; i < columnCount; i++) {
         JLabel label = new JLabel(nomesColunas[i]);
-        boolean colunaComConstraint = false;
+        boolean isForeignKey = false;
 
-        if (searchConditions != null) { 
-            for (String condition : searchConditions) {
-                if (condition.contains(nomesColunas[i]) && condition.contains("IN")) {
-                    colunaComConstraint = true;
-                    JComboBox<String> inputField = new JComboBox<>();
-
-                    try {
-                        String valores = condition.substring(condition.indexOf("IN") + 2).trim();
-                        valores = valores.substring(valores.indexOf('(') + 1, valores.lastIndexOf(')'));
-                        
-                        String[] valoresArray = valores.split(",");
-                        for (String valor : valoresArray) {
-                            inputField.addItem(valor.trim().replace("'", "")); 
-                        }
-                    } catch (StringIndexOutOfBoundsException e) {
-                        System.out.println("Erro ao processar a cláusula IN: " + condition);
-                    }
-                    
-                    pPainelDeInsecaoDeDados.add(label);
-                    pPainelDeInsecaoDeDados.add(inputField);
-                    inputFields[i] = inputField;
-                    break; 
+        for (String[] fk : foreignKeys) {
+            if (fk[0].equals(nomesColunas[i])) {
+                isForeignKey = true;
+                JComboBox<String> comboBox = new JComboBox<>();
+                
+                // Preencha a comboBox com valores da tabela referenciada
+                List<String> valoresFK = bd.obterValoresDeColuna(fk[1], fk[2]); // parent_table e parent_column
+                for (String valor : valoresFK) {
+                    comboBox.addItem(valor);
                 }
+                
+                pPainelDeInsecaoDeDados.add(label);
+                pPainelDeInsecaoDeDados.add(comboBox);
+                inputFields[i] = comboBox;
+                break;
             }
         }
 
-        if (!colunaComConstraint) {
-            JTextField inputFieldTexto = new JTextField();
+        if (!isForeignKey) {
+            JTextField textField = new JTextField();
             pPainelDeInsecaoDeDados.add(label);
-            pPainelDeInsecaoDeDados.add(inputFieldTexto);
-            inputFields[i] = inputFieldTexto; 
+            pPainelDeInsecaoDeDados.add(textField);
+            inputFields[i] = textField;
         }
     }
 
@@ -180,7 +172,7 @@ private void preencheCamposDeInsercao(String nomeTabela) {
 
         bd.inserirDadosTabela(nomeTabela, valores); 
     });
-    
+
     pPainelDeInsecaoDeDados.add(botaoInserir);
     pPainelDeInsecaoDeDados.revalidate();
     pPainelDeInsecaoDeDados.repaint(); 
