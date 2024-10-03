@@ -26,10 +26,8 @@ import javax.swing.JTextField;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.JFileChooser;
 import javax.swing.table.DefaultTableModel;
-import java.sql.SQLException;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
+
 /**
  *
  * @author junio
@@ -58,11 +56,10 @@ public class JanelaPrincipal {
         jc = new JComboBox<>();
         pPainelDeCima.add(jc);
         
-        // Adicionando o botão "Exportar DDL"
         JButton botaoGerarDDL = new JButton("Exportar DDL");
         botaoGerarDDL.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
-            bd.exportarDDLParaArquivo();  // Chama o método de exportar DDL
+            bd.exportarDDLParaArquivo();  
         }
         });
         pPainelDeCima.add(botaoGerarDDL);
@@ -135,15 +132,14 @@ private void preencheCamposDeInsercao(String nomeTabela) {
         return;
     }
 
-    List<String> searchConditions = bd.obtemCheckIn(nomeTabela); // Método que obtém constraints CHECK IN
-    List<String[]> foreignKeys = bd.obterConstraintsChaveEstrangeira(nomeTabela); // Obtém chaves estrangeiras
+    List<String> searchConditions = bd.obtemCheckIn(nomeTabela); 
+    List<String[]> foreignKeys = bd.obterConstraintsChaveEstrangeira(nomeTabela); 
     Object[] inputFields = new Object[columnCount];
 
     for (int i = 0; i < columnCount; i++) {
         JLabel label = new JLabel(nomesColunas[i]);
         boolean campoComConstraint = false;
 
-        // Verifica se a coluna tem constraint CHECK IN
         if (searchConditions != null) {
             for (String condition : searchConditions) {
                 if (condition.contains(nomesColunas[i]) && condition.contains("IN")) {
@@ -170,12 +166,11 @@ private void preencheCamposDeInsercao(String nomeTabela) {
             }
         }
 
-        // Se não for constraint CHECK IN, verifica se é chave estrangeira
         if (!campoComConstraint) {
             boolean isForeignKey = false;
 
             for (String[] fk : foreignKeys) {
-                if (fk[0].equals(nomesColunas[i])) { // Se a coluna for chave estrangeira
+                if (fk[0].equals(nomesColunas[i])) {
                     isForeignKey = true;
                     JComboBox<String> comboBox = new JComboBox<>();
 

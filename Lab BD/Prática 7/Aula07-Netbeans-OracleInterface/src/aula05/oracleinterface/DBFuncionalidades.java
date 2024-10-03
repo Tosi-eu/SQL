@@ -240,11 +240,7 @@ public List<String[]> obterConstraintsChaveEstrangeira(String nomeTabela) {
     
     return foreignKeys;
     }
-<<<<<<< HEAD
 
-=======
-    
->>>>>>> 7902805346b450af5e15b48f3373edc006e22f29
 public void exportarDDLParaArquivo() {
     String ddlOutput = "";
     JFileChooser fileChooser = new JFileChooser();
