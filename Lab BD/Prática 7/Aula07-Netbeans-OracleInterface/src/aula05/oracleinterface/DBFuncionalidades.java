@@ -240,7 +240,11 @@ public List<String[]> obterConstraintsChaveEstrangeira(String nomeTabela) {
     
     return foreignKeys;
     }
+<<<<<<< HEAD
 
+=======
+    
+>>>>>>> 7902805346b450af5e15b48f3373edc006e22f29
 public void exportarDDLParaArquivo() {
     String ddlOutput = "";
     JFileChooser fileChooser = new JFileChooser();
@@ -255,13 +259,11 @@ public void exportarDDLParaArquivo() {
         }
 
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(arquivoSQL, StandardCharsets.UTF_8))) {
-            // Definir as tabelas na ordem correta
             String[] tabelas = {"L01_PAIS", "L02_OLIMPIADA", "L03_MODALIDADE", 
                                 "L04_LOCAL", "L05_DISPUTA", "L06_ATLETA", 
                                 "L07_JOGA", "L08_PATROCINADOR", "L09_PATROCINA", 
                                 "L10_MIDIA", "L11_TRANSMITE"};
-            
-            // Gerar o DDL de cada tabela
+
             for (String tabela : tabelas) {
                 Statement stmt = connection.createStatement();
                 ResultSet rs = stmt.executeQuery(
