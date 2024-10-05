@@ -16,6 +16,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.PreparedStatement;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import javax.swing.JComboBox;
 import javax.swing.JFileChooser;
@@ -128,15 +129,54 @@ public class DBFuncionalidades {
             jtAreaDeStatus.setText(ex.getMessage());
         }
     }
-    
-    public void inserirDadosTabela(String nomeTabela, Object[] valores) {
+   
+private void verificarEAlterarTabela() {
+    String nomeTabela = "L09_PATROCINA";
+    String sqlVerificar = "SELECT DATA_SCALE FROM USER_TAB_COLUMNS WHERE TABLE_NAME = ? AND COLUMN_NAME = 'VALOR_TOTAL'";
+
+    try (PreparedStatement pstmt = connection.prepareStatement(sqlVerificar)) {
+        pstmt.setString(1, nomeTabela.toUpperCase());
+        ResultSet rs = pstmt.executeQuery();
+
+        if (rs.next()) {
+            int dataScale = rs.getInt("DATA_SCALE");
+            if (dataScale != 2) {
+                String sqlCheck = "SELECT VALOR_TOTAL FROM " + nomeTabela + " WHERE VALOR_TOTAL LIKE '%.%'";
+                Statement stmt = connection.createStatement();
+                ResultSet rsCheck = stmt.executeQuery(sqlCheck);
+
+                if (rsCheck.next()) {
+                    String sqlAlter = "ALTER TABLE " + nomeTabela + " MODIFY VALOR_TOTAL NUMBER(10, 2)"; 
+                    System.out.println("Tabela alterada: precisão de VALOR_TOTAL aumentada em 2 dígitos.");
+                } else {
+                    System.out.println("Nenhum valor em VALOR_TOTAL com ponto encontrado.");
+                }
+            } else {
+                System.out.println("A coluna VALOR_TOTAL já possui uma escala diferente de 0.");
+            }
+        } else {
+            System.out.println("Coluna VALOR_TOTAL não encontrada na tabela " + nomeTabela);
+        }
+    } catch (SQLException ex) {
+        System.out.println("Erro ao verificar ou alterar a tabela: " + ex.getMessage());
+    }
+}
+
+public void inserirDadosTabela(String nomeTabela, Object[] valores) {
     try {
         stmt = connection.createStatement();
         
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < valores.length; i++) {
-            System.out.println(valores[i]);
-            sb.append("'").append(valores[i]).append("'");
+            if (valores[i].toString().contains(".") &&  "L09_PATROCINA".equals(nomeTabela)) {
+                //System.out.println("to aqui " + valores[i]);
+                verificarEAlterarTabela();
+                sb.append(Float.parseFloat(valores[i].toString()));
+             }
+            else {
+                sb.append("'").append(valores[i].toString()).append("'");
+            }
+
             if (i < valores.length - 1) {
                 sb.append(", ");
             }
@@ -148,10 +188,12 @@ public class DBFuncionalidades {
         stmt.close();
     } catch (SQLException ex) {
         jtAreaDeStatus.setText("Erro ao inserir dados: " + ex.getMessage());
+    } catch (NumberFormatException ex) {
+        jtAreaDeStatus.setText("Erro inesperado: " + ex.getMessage());
     }
 }
-    
-    public int obterQuantidadeColunas(String nomeTabela) {
+
+   public int obterQuantidadeColunas(String nomeTabela) {
         int columnCount = 0;
         try {
             stmt = connection.createStatement();

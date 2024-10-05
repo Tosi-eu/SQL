@@ -170,7 +170,7 @@ private void preencheCamposDeInsercao(String nomeTabela) {
             boolean isForeignKey = false;
 
             for (String[] fk : foreignKeys) {
-                if (fk[0].equals(nomesColunas[i])) {
+                if (fk[0].equals(nomesColunas[i])) { 
                     isForeignKey = true;
                     JComboBox<String> comboBox = new JComboBox<>();
 
@@ -196,12 +196,12 @@ private void preencheCamposDeInsercao(String nomeTabela) {
     }
 
     JButton botaoInserir = new JButton("Inserir Dados");
-    botaoInserir.addActionListener((ActionEvent e) -> {
+    botaoInserir.addActionListener((var e) -> {
         Object[] valores = new Object[columnCount];
 
         for (int i = 0; i < columnCount; i++) {
-            if (inputFields[i] instanceof JTextField) {
-                valores[i] = ((JTextField) inputFields[i]).getText();
+            if (inputFields[i] instanceof JTextField jTextField) {
+                valores[i] = jTextField.getText();
             } else if (inputFields[i] instanceof JComboBox) {
                 valores[i] = ((JComboBox<?>) inputFields[i]).getSelectedItem();
             }
