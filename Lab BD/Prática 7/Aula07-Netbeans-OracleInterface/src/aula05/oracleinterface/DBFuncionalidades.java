@@ -16,7 +16,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.PreparedStatement;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import javax.swing.JComboBox;
 import javax.swing.JFileChooser;
@@ -284,11 +284,10 @@ public List<String[]> obterConstraintsChaveEstrangeira(String nomeTabela) {
     }
 
 public void exportarDDLParaArquivo() {
-    String ddlOutput = "";
     JFileChooser fileChooser = new JFileChooser();
     fileChooser.setDialogTitle("Salvar DDL como arquivo SQL");
     fileChooser.setFileFilter(new FileNameExtensionFilter("SQL Files", "sql"));
-    
+
     int userSelection = fileChooser.showSaveDialog(null);
     if (userSelection == JFileChooser.APPROVE_OPTION) {
         File arquivoSQL = fileChooser.getSelectedFile();
@@ -297,26 +296,156 @@ public void exportarDDLParaArquivo() {
         }
 
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(arquivoSQL, StandardCharsets.UTF_8))) {
-            String[] tabelas = {"L01_PAIS", "L02_OLIMPIADA", "L03_MODALIDADE", 
-                                "L04_LOCAL", "L05_DISPUTA", "L06_ATLETA", 
-                                "L07_JOGA", "L08_PATROCINADOR", "L09_PATROCINA", 
-                                "L10_MIDIA", "L11_TRANSMITE"};
+            // Obter os nomes das tabelas dinamicamente
+            List<String> tabelas = obterNomesDeTabelas(connection);
 
+            // Iterar sobre as tabelas e gerar o DDL para cada uma
             for (String tabela : tabelas) {
-                Statement stmt = connection.createStatement();
-                ResultSet rs = stmt.executeQuery(
-                    "SELECT DBMS_METADATA.GET_DDL('TABLE', '" + tabela + "') AS DDL FROM DUAL"
-                );
-                while (rs.next()) {
-                    ddlOutput = rs.getString("DDL");
-                    writer.write(ddlOutput + ";\n\n");
-                }
-                stmt.close();
+                String ddlTabela = gerarDDLParaTabela(connection, tabela);
+                writer.write(ddlTabela + "\n\n");
             }
+
             jtAreaDeStatus.setText("DDL exportado com sucesso para: " + arquivoSQL.getAbsolutePath());
+
         } catch (SQLException | IOException ex) {
             jtAreaDeStatus.setText("Erro ao gerar ou exportar o DDL: " + ex.getMessage());
         }
     }
+}
+
+// Função para obter os nomes das tabelas dinamicamente
+private List<String> obterNomesDeTabelas(Connection connection) throws SQLException {
+    List<String> tabelas = new ArrayList<>();
+    
+    Statement stmt = connection.createStatement();
+    String query = "SELECT TABLE_NAME FROM USER_TABLES";
+    ResultSet rs = stmt.executeQuery(query);
+    
+    while (rs.next()) {
+        tabelas.add(rs.getString("TABLE_NAME"));
+    }
+    
+    stmt.close();
+    Collections.sort(tabelas);
+    
+    return tabelas;
+}
+
+// Função que gera o DDL simplificado para uma tabela
+private String gerarDDLParaTabela(Connection connection, String tabela) throws SQLException {
+    StringBuilder ddl = new StringBuilder();
+    
+    // Obter colunas da tabela
+    Statement stmt = connection.createStatement();
+    String queryColunas = "SELECT COLUMN_NAME, DATA_TYPE, DATA_LENGTH, DATA_PRECISION, NULLABLE FROM USER_TAB_COLUMNS WHERE TABLE_NAME = '" + tabela + "'";
+    ResultSet rsColunas = stmt.executeQuery(queryColunas);
+
+    ddl.append("CREATE TABLE ").append(tabela).append(" (\n");
+
+    while (rsColunas.next()) {
+        String columnName = rsColunas.getString("COLUMN_NAME");
+        String dataType = rsColunas.getString("DATA_TYPE");
+        String nullable = rsColunas.getString("NULLABLE");
+
+        if (dataType.equals("VARCHAR2")) {
+            int dataLength = rsColunas.getInt("DATA_LENGTH");
+            ddl.append("    ").append(columnName).append(" ").append(dataType).append("(").append(dataLength).append(")");
+        } else if (dataType.equals("NUMBER")) {
+            int precision = rsColunas.getInt("DATA_PRECISION");
+            if (precision > 0) {
+                ddl.append("    ").append(columnName).append(" ").append(dataType).append("(").append(precision).append(")");
+            } else {
+                ddl.append("    ").append(columnName).append(" ").append(dataType);
+            }
+        } else {
+            ddl.append("    ").append(columnName).append(" ").append(dataType);
+        }
+
+        if (nullable.equals("N")) {
+            ddl.append(" NOT NULL");
+        }
+
+        ddl.append(",\n");
+    }
+
+    // Remover a última vírgula e adicionar o fechamento do CREATE TABLE
+    ddl.setLength(ddl.length() - 2);  // Remove a última vírgula
+    ddl.append("\n);");
+
+    // Adicionar as constraints (PK, FK, UNIQUE, etc)
+    ddl.append(obterConstraints(connection, tabela));
+
+    return ddl.toString();
+}
+
+// Função que obtém as constraints de uma tabela 
+private String obterConstraints(Connection connection, String tabela) throws SQLException {
+    StringBuilder constraints = new StringBuilder();
+    
+    Statement stmt = connection.createStatement();
+    String queryConstraints = "SELECT CONSTRAINT_NAME, CONSTRAINT_TYPE FROM USER_CONSTRAINTS WHERE TABLE_NAME = '" + tabela + "'";
+    ResultSet rsConstraints = stmt.executeQuery(queryConstraints);
+
+    while (rsConstraints.next()) {
+        String constraintName = rsConstraints.getString("CONSTRAINT_NAME");
+        String constraintType = rsConstraints.getString("CONSTRAINT_TYPE");
+
+        if (constraintType.equals("P")) {
+            // Chave primária
+            constraints.append("\nALTER TABLE ").append(tabela).append(" ADD CONSTRAINT ").append(constraintName).append(" PRIMARY KEY (");
+            constraints.append(obterColunasDaConstraint(connection, constraintName)).append(");");
+        } else if (constraintType.equals("U")) {
+            // Unique
+            constraints.append("\nALTER TABLE ").append(tabela).append(" ADD CONSTRAINT ").append(constraintName).append(" UNIQUE (");
+            constraints.append(obterColunasDaConstraint(connection, constraintName)).append(");");
+        } else if (constraintType.equals("R")) {
+            // Chave estrangeira
+            constraints.append("\nALTER TABLE ").append(tabela).append(" ADD CONSTRAINT ").append(constraintName).append(" FOREIGN KEY (");
+            constraints.append(obterColunasDaConstraint(connection, constraintName)).append(") REFERENCES ");
+            constraints.append(obterTabelaReferencia(connection, constraintName)).append(");");
+        }
+    }
+
+    return constraints.toString();
+}
+
+// Função para obter as colunas de uma constraint (mesma versão anterior)
+private String obterColunasDaConstraint(Connection connection, String constraintName) throws SQLException {
+    StringBuilder colunas = new StringBuilder();
+    
+    Statement stmt = connection.createStatement();
+    String queryColunas = "SELECT COLUMN_NAME FROM USER_CONS_COLUMNS WHERE CONSTRAINT_NAME = '" + constraintName + "'";
+    ResultSet rsColunas = stmt.executeQuery(queryColunas);
+
+    while (rsColunas.next()) {
+        colunas.append(rsColunas.getString("COLUMN_NAME")).append(", ");
+    }
+
+    colunas.setLength(colunas.length() - 2);  // Remove a última vírgula
+
+    return colunas.toString();
+}
+
+// Função para obter a tabela referenciada por uma constraint de chave estrangeira (mesma versão anterior)
+private String obterTabelaReferencia(Connection connection, String constraintName) throws SQLException {
+    String tabelaReferencia = "";
+
+    Statement stmt = connection.createStatement();
+    String queryReferencia = "SELECT R_CONSTRAINT_NAME FROM USER_CONSTRAINTS WHERE CONSTRAINT_NAME = '" + constraintName + "'";
+    ResultSet rsReferencia = stmt.executeQuery(queryReferencia);
+
+    if (rsReferencia.next()) {
+        String constraintReferencia = rsReferencia.getString("R_CONSTRAINT_NAME");
+
+        // Agora obter a tabela da constraint referenciada
+        String queryTabela = "SELECT TABLE_NAME FROM USER_CONSTRAINTS WHERE CONSTRAINT_NAME = '" + constraintReferencia + "'";
+        ResultSet rsTabela = stmt.executeQuery(queryTabela);
+
+        if (rsTabela.next()) {
+            tabelaReferencia = rsTabela.getString("TABLE_NAME");
+        }
+    }
+
+    return tabelaReferencia;
 }
 }
