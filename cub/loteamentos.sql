@@ -163,16 +163,16 @@ EXECUTE FUNCTION verificar_stauts_parcela_insercao();
 CREATE OR REPLACE FUNCTION validar_valor_pagamento()
 RETURNS TRIGGER AS $$
 DECLARE
-    valor_parcela DECIMAL(11, 2);
+    v_parcela DECIMAL(11, 2);
 BEGIN
-    SELECT VALOR_PARCELA INTO valor_parcela FROM PARCELAS WHERE PARCELA_ID = NEW.PARCELA_ID;
+    SELECT VALOR_PARCELA INTO v_parcela FROM PARCELAS WHERE PARCELA_ID = NEW.PARCELA_ID;
 
-    IF NEW.VALOR_PAGO > valor_parcela THEN
+    IF NEW.VALOR_PAGO > v_parcela THEN
         RAISE EXCEPTION 'O valor pago não pode ser maior que o valor da parcela';
-    ELSIF NEW.VALOR_PAGO < valor_parcela THEN
+    ELSIF NEW.VALOR_PAGO < v_parcela THEN
         RAISE EXCEPTION 'O valor pago não pode ser menor que o valor da parcela';
     END IF;
-m
+
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
