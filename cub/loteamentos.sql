@@ -72,7 +72,7 @@ BEGIN
 	END IF;
     
     IF (SELECT DATA_VENCIMENTO FROM PARCELAS WHERE PARCELA_ID = NEW.PARCELA_ID) < CURRENT_DATE
-        AND (SELECT STATUS FROM PARCELAS WHERE PARCELA_ID = NEW.PARCELA_ID) != 'Paga' THEN
+        AND (SELECT STATUS FROM PARCELAS WHERE PARCELA_ID = NEW.PARCELA_ID) <> 'Paga' THEN
         UPDATE PARCELAS
         SET STATUS = 'Vencida'
         WHERE PARCELA_ID = NEW.PARCELA_ID;
@@ -159,3 +159,26 @@ CREATE TRIGGER trigger_verificar_stauts_parcela_insercao
 AFTER INSERT ON PARCELAS
 FOR EACH ROW
 EXECUTE FUNCTION verificar_stauts_parcela_insercao();
+
+CREATE OR REPLACE FUNCTION validar_valor_pagamento()
+RETURNS TRIGGER AS $$
+DECLARE
+    valor_parcela DECIMAL(11, 2);
+BEGIN
+    SELECT VALOR_PARCELA INTO valor_parcela FROM PARCELAS WHERE PARCELA_ID = NEW.PARCELA_ID;
+
+    IF NEW.VALOR_PAGO > valor_parcela THEN
+        RAISE EXCEPTION 'O valor pago não pode ser maior que o valor da parcela';
+    ELSIF NEW.VALOR_PAGO < valor_parcela THEN
+        RAISE EXCEPTION 'O valor pago não pode ser menor que o valor da parcela';
+    END IF;
+m
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trigger_validar_valor_pagamento
+BEFORE INSERT ON PAGAMENTOS
+FOR EACH ROW
+EXECUTE FUNCTION validar_valor_pagamento();
+
