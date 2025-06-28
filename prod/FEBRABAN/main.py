@@ -3,9 +3,7 @@ import re
 import psycopg2
 from decimal import Decimal
 from colorama import init, Fore, Style
-from dotenv import load_dotenv
 
-load_dotenv()
 init(autoreset=True)
 
 # ===============================
@@ -22,11 +20,11 @@ def input_info(prompt): return input(f"{Fore.LIGHTYELLOW_EX}[INFO]{Style.RESET_A
 def get_connection():
     try:
         conn = psycopg2.connect(
-            dbname=os.getenv("DB_NAME"),
-            user=os.getenv("DB_USER"),
-            password=os.getenv("DB_PASS"),
-            host=os.getenv("DB_HOST"),
-            port=int(os.getenv("DB_PORT"))
+            dbname='supermercado', #criar esse banco de dados ou usar o seu
+            user='postgres', #seu usuario
+            password='postgres_Eu12', #sua senha
+            host='localhost', #nao mexe
+            port=5432 #nao mexe
         )
         sucesso("Conexão com o banco estabelecida com sucesso.")
         return conn
@@ -196,7 +194,7 @@ def processo_checkout(conn):
                     sucesso(f"[Produto] {produto['name']} | R$ {produto['price']}")
 
             conn.commit()
-            
+
     except Exception as e:
         erro(f"Falha no processo de checkout: {e}")
         conn.rollback()
