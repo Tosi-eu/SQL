@@ -20,7 +20,7 @@ CREATE TABLE products (
 
 CREATE TABLE lots (
     id SERIAL PRIMARY KEY,
-    lot_code VARCHAR(30) UNIQUE NOT NULL, 
+    lot_code VARCHAR(44) UNIQUE NOT NULL, 
     product_id INTEGER REFERENCES products(id),
     quantity INTEGER NOT NULL CHECK (quantity > 0),
     received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -96,8 +96,6 @@ CREATE OR REPLACE FUNCTION validar_data_vencimento_lote() RETURNS TRIGGER AS $$
 DECLARE
     data_cod_barras DATE;
 BEGIN
-    -- Extrai os primeiros 8 dígitos do campo livre (posições 24–31 no código de 44 dígitos)
-    -- Campo 24–31 → posição 23–31 (base 0)
     data_cod_barras := TO_DATE(SUBSTRING(NEW.lot_code FROM 24 FOR 8), 'YYYYMMDD');
 
     IF data_cod_barras < CURRENT_DATE THEN
@@ -160,4 +158,3 @@ INSERT INTO stock (product_id, quantity) VALUES
   (3, 0),  -- Sabonete Dove
   (4, 0),  -- Detergente Ariel
   (5, 0);  -- Ração Purina
-
