@@ -53,6 +53,7 @@ CREATE TABLE audit_log (
     changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Trigger de atualização de estoque
 CREATE OR REPLACE FUNCTION update_stock_on_transaction() RETURNS TRIGGER AS $$
 BEGIN
     IF (SELECT transaction_type FROM transactions WHERE id = NEW.transaction_id) = 'entry' THEN
@@ -71,27 +72,7 @@ CREATE TRIGGER trg_update_stock
 AFTER INSERT ON transaction_items
 FOR EACH ROW EXECUTE FUNCTION update_stock_on_transaction();
 
-CREATE INDEX idx_products_code ON products(code);
-
-CREATE OR REPLACE FUNCTION audit_trigger_func() RETURNS TRIGGER AS $$
-BEGIN
-    IF (TG_OP = 'DELETE') THEN
-        INSERT INTO audit_log(table_name, operation, changed_data)
-        VALUES (TG_TABLE_NAME, TG_OP, row_to_json(OLD));
-        RETURN OLD;
-    ELSIF (TG_OP = 'UPDATE') THEN
-        INSERT INTO audit_log(table_name, operation, changed_data)
-        VALUES (TG_TABLE_NAME, TG_OP, json_build_object('old', row_to_json(OLD), 'new', row_to_json(NEW)));
-        RETURN NEW;
-    ELSIF (TG_OP = 'INSERT') THEN
-        INSERT INTO audit_log(table_name, operation, changed_data)
-        VALUES (TG_TABLE_NAME, TG_OP, row_to_json(NEW));
-        RETURN NEW;
-    END IF;
-    RETURN NULL;
-END;
-$$ LANGUAGE plpgsql;
-
+-- Trigger de validade de lote
 CREATE OR REPLACE FUNCTION validar_data_vencimento_lote() RETURNS TRIGGER AS $$
 DECLARE
     data_cod_barras DATE;
@@ -111,11 +92,32 @@ BEFORE INSERT ON lots
 FOR EACH ROW
 EXECUTE FUNCTION validar_data_vencimento_lote();
 
+-- Trigger de auditoria
+CREATE OR REPLACE FUNCTION audit_trigger_func() RETURNS TRIGGER AS $$
+BEGIN
+    IF (TG_OP = 'DELETE') THEN
+        INSERT INTO audit_log(table_name, operation, changed_data)
+        VALUES (TG_TABLE_NAME, TG_OP, row_to_json(OLD));
+        RETURN OLD;
+    ELSIF (TG_OP = 'UPDATE') THEN
+        INSERT INTO audit_log(table_name, operation, changed_data)
+        VALUES (TG_TABLE_NAME, TG_OP, json_build_object('old', row_to_json(OLD), 'new', row_to_json(NEW)));
+        RETURN NEW;
+    ELSIF (TG_OP = 'INSERT') THEN
+        INSERT INTO audit_log(table_name, operation, changed_data)
+        VALUES (TG_TABLE_NAME, TG_OP, row_to_json(NEW));
+        RETURN NEW;
+    END IF;
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Triggers de auditoria
 CREATE TRIGGER trg_audit_products
 AFTER INSERT OR UPDATE OR DELETE ON products
 FOR EACH ROW EXECUTE FUNCTION audit_trigger_func();
 
-CREATE TRIGGER trg_audit_products
+CREATE TRIGGER trg_audit_lots
 AFTER INSERT OR UPDATE OR DELETE ON lots
 FOR EACH ROW EXECUTE FUNCTION audit_trigger_func();
 
@@ -131,13 +133,17 @@ CREATE TRIGGER trg_audit_transaction_items
 AFTER INSERT OR UPDATE OR DELETE ON transaction_items
 FOR EACH ROW EXECUTE FUNCTION audit_trigger_func();
 
+-- Índice para produtos por código
+CREATE INDEX idx_products_code ON products(code);
+
+-- Dados iniciais
 INSERT INTO segments (name) VALUES
   ('Alimentos'),
   ('Bebidas'),
   ('Higiene'),
   ('Limpeza'),
   ('Petshop');
-  
+
 INSERT INTO companies (name, segment_id, cnpj) VALUES
   ('Nestlé Brasil Ltda',        1, '02345678000190'),
   ('Coca-Cola Indústrias',      2, '04567891000180'),
@@ -153,8 +159,8 @@ INSERT INTO products (code, name, price, company_id) VALUES
   ('7896066339015', 'Ração Purina 1kg', 15.90, 5);
 
 INSERT INTO stock (product_id, quantity) VALUES
-  (1, 0),  -- Leite Condensado
-  (2, 0),  -- Coca-Cola
-  (3, 0),  -- Sabonete Dove
-  (4, 0),  -- Detergente Ariel
-  (5, 0);  -- Ração Purina
+  (1, 0),
+  (2, 0),
+  (3, 0),
+  (4, 0),
+  (5, 0);
