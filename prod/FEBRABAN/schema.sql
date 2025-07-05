@@ -45,6 +45,14 @@ CREATE TABLE transaction_items (
     price NUMERIC(10, 2) NOT NULL CHECK (price > 0)
 );
 
+CREATE TABLE audit_log (
+    id SERIAL PRIMARY KEY,
+    table_name TEXT NOT NULL,
+    operation TEXT NOT NULL CHECK (operation IN ('INSERT', 'UPDATE', 'DELETE')),
+    changed_data JSONB NOT NULL,
+    changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Dados iniciais
 INSERT INTO segments (name) VALUES
   ('Alimentos'),
