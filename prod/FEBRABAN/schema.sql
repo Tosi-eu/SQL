@@ -6,29 +6,36 @@ CREATE TABLE segmentos (
 CREATE TABLE fornecedores (
     id SERIAL PRIMARY KEY,
     nome TEXT NOT NULL UNIQUE,
-    id_segmento INTEGER REFERENCES segmentos(id),
     cnpj VARCHAR(14) UNIQUE NOT NULL
 );
 
 CREATE TABLE produtos (
     id SERIAL PRIMARY KEY,
-    codigo VARCHAR(20) UNIQUE NOT NULL,  
-    nome TEXT NOT NULL,
+    nome TEXT NOT NULL
+);
+
+CREATE TABLE produto_empresa (
+    id SERIAL PRIMARY KEY,
+    codigo VARCHAR(13),
+    id_produto INTEGER REFERENCES produtos(id) ON DELETE CASCADE,
+    id_empresa INTEGER REFERENCES fornecedores(id) ON DELETE CASCADE,
+    id_segmento INTEGER REFERENCES segmentos(id),
     preco NUMERIC(10, 2) NOT NULL CHECK (preco > 0),
-    id_empresa INTEGER REFERENCES fornecedores(id) ON DELETE CASCADE
+    UNIQUE(id_produto, id_empresa),
+    UNIQUE(codigo)
+);
+
+CREATE TABLE estoque (
+    id_produto INTEGER PRIMARY KEY REFERENCES produto_empresa(id) ON DELETE CASCADE,
+    quantidade INTEGER NOT NULL DEFAULT 0 CHECK (quantidade >= 0)
 );
 
 CREATE TABLE lotes (
     id SERIAL PRIMARY KEY,
-    codigo VARCHAR(44) UNIQUE NOT NULL, 
-    id_produto INTEGER REFERENCES produtos(id),
+    codigo VARCHAR(44) UNIQUE NOT NULL,
+    id_produto INTEGER REFERENCES produto_empresa(id),
     quantidade INTEGER NOT NULL CHECK (quantidade > 0),
     recebido TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE estoque (
-    id_produto INTEGER PRIMARY KEY REFERENCES produtos(id) ON DELETE CASCADE,
-    quantidade INTEGER NOT NULL DEFAULT 0 CHECK (quantidade >= 0)
 );
 
 CREATE TABLE transacoes (
@@ -40,11 +47,12 @@ CREATE TABLE transacoes (
 CREATE TABLE itens_transacionados (
     id SERIAL PRIMARY KEY,
     id_transacao INTEGER REFERENCES transacoes(id) ON DELETE CASCADE,
-    id_produto INTEGER REFERENCES produtos(id) ON DELETE CASCADE,
+    id_produto_empresa INTEGER REFERENCES produto_empresa(id) ON DELETE CASCADE,
     quantidade INTEGER NOT NULL CHECK (quantidade > 0),
     preco NUMERIC(10, 2) NOT NULL CHECK (preco > 0)
 );
 
+-- Segmentos
 INSERT INTO segmentos (nome) VALUES
   ('Padaria'),
   ('Frios e Laticínios'),
@@ -52,23 +60,34 @@ INSERT INTO segmentos (nome) VALUES
   ('Limpeza'),
   ('Bebidas Alcoólicas');
 
-INSERT INTO fornecedores (nome, id_segmento, cnpj) VALUES
-  ('Panificadora Pão Quente Ltda', 1, '11111111000191'),
-  ('Laticínios Vale Verde',        2, '22222222000192'),
-  ('Frutas Tropicais Distribuidora', 3, '33333333000193'),
-  ('Limpa Fácil Indústria Química', 4, '44444444000194'),
-  ('Cervejaria Serra Alta',        5, '55555555000195');
+-- Empresas
+INSERT INTO fornecedores (nome, cnpj) VALUES
+  ('Panificadora Pão Quente Ltda', '11111111000191'),
+  ('Laticínios Vale Verde', '22222222000192'),
+  ('Frutas Tropicais Distribuidora', '33333333000193'),
+  ('Limpa Fácil Indústria Química', '44444444000194'),
+  ('Cervejaria Serra Alta', '55555555000195');
 
-INSERT INTO produtos (codigo, nome, preco, id_empresa) VALUES
-  ('7891111000001', 'Pão Francês 1kg',         9.90, 1),
-  ('7892222000002', 'Queijo Minas Frescal 500g', 18.50, 2),
-  ('7893333000003', 'Banana Nanica 1kg',        4.29, 3),
-  ('7894444000004', 'Desinfetante Lavanda 2L',  7.75, 4),
-  ('7895555000005', 'Cerveja Pilsen 600ml',     5.20, 5);
+-- Produtos genéricos
+INSERT INTO produtos (nome) VALUES
+  ('Pão Francês 1kg'),
+  ('Queijo Minas Frescal 500g'),
+  ('Banana Nanica 1kg'),
+  ('Desinfetante Lavanda 2L'),
+  ('Cerveja Pilsen 600ml');
 
+-- Relações produto-empresa
+INSERT INTO produto_empresa (id_produto, id_empresa, id_segmento, preco) VALUES
+  (1, 1, 1, 9.90),
+  (2, 2, 2, 18.50),
+  (3, 3, 3, 4.29),
+  (4, 4, 4, 7.75),
+  (5, 5, 5, 5.20);
+
+-- Estoque inicial
 INSERT INTO estoque (id_produto, quantidade) VALUES
-  (1, 0),
-  (2, 0),
-  (3, 0),
-  (4, 0),
-  (5, 0);
+  (1, 10),
+  (2, 15),
+  (3, 20),
+  (4, 5),
+  (5, 12);
