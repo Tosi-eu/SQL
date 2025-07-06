@@ -3,32 +3,39 @@ CREATE TABLE segments (
     name TEXT NOT NULL UNIQUE
 );
 
-CREATE TABLE companies (
+CREATE TABLE suppliers (
     id SERIAL PRIMARY KEY,
     name TEXT NOT NULL UNIQUE,
-    segment_id INTEGER REFERENCES segments(id),
     cnpj VARCHAR(14) UNIQUE NOT NULL
 );
 
 CREATE TABLE products (
     id SERIAL PRIMARY KEY,
-    code VARCHAR(20) UNIQUE NOT NULL,  
-    name TEXT NOT NULL,
+    name TEXT NOT NULL
+);
+
+CREATE TABLE product_supplier (
+    id SERIAL PRIMARY KEY,
+    code VARCHAR(13),
+    product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
+    supplier_id INTEGER REFERENCES suppliers(id) ON DELETE CASCADE,
+    segment_id INTEGER REFERENCES segments(id),
     price NUMERIC(10, 2) NOT NULL CHECK (price > 0),
-    company_id INTEGER REFERENCES companies(id) ON DELETE CASCADE
+    UNIQUE(product_id, supplier_id),
+    UNIQUE(code)
+);
+
+CREATE TABLE stock (
+    product_id INTEGER PRIMARY KEY REFERENCES product_supplier(id) ON DELETE CASCADE,
+    quantity INTEGER NOT NULL DEFAULT 0 CHECK (quantity >= 0)
 );
 
 CREATE TABLE lots (
     id SERIAL PRIMARY KEY,
-    lot_code VARCHAR(44) UNIQUE NOT NULL, 
-    product_id INTEGER REFERENCES products(id),
+    code VARCHAR(44) UNIQUE NOT NULL,
+    product_id INTEGER REFERENCES product_supplier(id),
     quantity INTEGER NOT NULL CHECK (quantity > 0),
     received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE stock (
-    product_id INTEGER PRIMARY KEY REFERENCES products(id) ON DELETE CASCADE,
-    quantity INTEGER NOT NULL DEFAULT 0 CHECK (quantity >= 0)
 );
 
 CREATE TABLE transactions (
@@ -40,7 +47,7 @@ CREATE TABLE transactions (
 CREATE TABLE transaction_items (
     id SERIAL PRIMARY KEY,
     transaction_id INTEGER REFERENCES transactions(id) ON DELETE CASCADE,
-    product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
+    product_id INTEGER REFERENCES product_supplier(id) ON DELETE CASCADE,
     quantity INTEGER NOT NULL CHECK (quantity > 0),
     price NUMERIC(10, 2) NOT NULL CHECK (price > 0)
 );
@@ -53,31 +60,42 @@ CREATE TABLE audit_log (
     changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Dados iniciais
+-- Segments
 INSERT INTO segments (name) VALUES
-  ('Alimentos'),
-  ('Bebidas'),
-  ('Higiene'),
-  ('Limpeza'),
-  ('Petshop');
+  ('Bakery'),
+  ('Dairy and Cold Cuts'),
+  ('Produce'),
+  ('Cleaning'),
+  ('Alcoholic Beverages');
 
-INSERT INTO companies (name, segment_id, cnpj) VALUES
-  ('Nestlé Brasil Ltda',        1, '02345678000190'),
-  ('Coca-Cola Indústrias',      2, '04567891000180'),
-  ('Unilever Higiene',          3, '06789123000170'),
-  ('Procter & Gamble',          4, '08912345000160'),
-  ('Purina Petcare',            5, '02402002000134');       
+-- Suppliers
+INSERT INTO suppliers (name, cnpj) VALUES
+  ('Hot Bread Bakery Ltd.', '11111111000191'),
+  ('Green Valley Dairy', '22222222000192'),
+  ('Tropical Fruit Distributor', '33333333000193'),
+  ('EasyClean Chemical Industry', '44444444000194'),
+  ('Serra Alta Brewery', '55555555000195');
 
-INSERT INTO products (code, name, price, company_id) VALUES
-  ('7891000050001', 'Leite Condensado Nestlé 395g', 6.99, 1),
-  ('7894900010015', 'Coca-Cola 2L', 8.49, 2),
-  ('7891150020020', 'Sabonete Dove 90g', 3.79, 3),
-  ('7891234567890', 'Detergente Ariel 500ml', 4.50, 4),
-  ('7896066339015', 'Ração Purina 1kg', 15.90, 5);
+-- Products
+INSERT INTO products (name) VALUES
+  ('French Bread 1kg'),
+  ('Fresh Minas Cheese 500g'),
+  ('Banana 1kg'),
+  ('Lavender Disinfectant 2L'),
+  ('Pilsner Beer 600ml');
 
+-- Product-supplier relationships
+INSERT INTO product_supplier (product_id, supplier_id, segment_id, price) VALUES
+  (1, 1, 1, 9.90),
+  (2, 2, 2, 18.50),
+  (3, 3, 3, 4.29),
+  (4, 4, 4, 7.75),
+  (5, 5, 5, 5.20);
+
+-- Initial stock
 INSERT INTO stock (product_id, quantity) VALUES
-  (1, 0),
-  (2, 0),
-  (3, 0),
-  (4, 0),
-  (5, 0);
+  (1, 10),
+  (2, 15),
+  (3, 20),
+  (4, 5),
+  (5, 12);
