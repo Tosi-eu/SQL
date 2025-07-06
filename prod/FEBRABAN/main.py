@@ -12,8 +12,8 @@ import pandas as pd
 init(autoreset=True)
 
 def info(msg): print(f"{Fore.LIGHTYELLOW_EX}[INFO]{Style.RESET_ALL} {msg}")
-def sucesso(msg): print(f"{Fore.GREEN}[SUCESSO]{Style.RESET_ALL} {msg}")
-def erro(msg): print(f"{Fore.RED}[ERRO]{Style.RESET_ALL} {msg}")
+def success(msg): print(f"{Fore.GREEN}[SUCESSO]{Style.RESET_ALL} {msg}")
+def error(msg): print(f"{Fore.RED}[ERRO]{Style.RESET_ALL} {msg}")
 def input_info(prompt): return input(f"{Fore.LIGHTYELLOW_EX}[INFO]{Style.RESET_ALL} {prompt}")
 
 """
@@ -37,7 +37,7 @@ def get_connection():
         temp_cursor.execute("SELECT 1 FROM pg_database WHERE datname = 'market'")
         if not temp_cursor.fetchone():
             temp_cursor.execute("CREATE DATABASE market")
-            sucesso("Banco de dados 'market' criado.")
+            success("Banco de dados 'market' criado.")
         temp_cursor.close()
         temp_conn.close()
 
@@ -62,12 +62,12 @@ def get_connection():
                 with open(schema_path, "r", encoding="utf-8") as f:
                     cur.execute(f.read())
                 conn.commit()
-                sucesso("Schema criado com sucesso.")
+                success("Schema criado com sucesso.")
             else:
                 info("Schema já existe.")
         return conn
     except Exception as e:
-        erro(f"Erro ao conectar ou configurar o banco: {e}")
+        error(f"Erro ao conectar ou configurar o banco: {e}")
         return None
 
 """
@@ -107,7 +107,7 @@ verifica se o código é febraban e se for, extrai cada parte de dentro dele
 def parse_febraban_code(code):
     digits = re.sub(r'\D', '', code)
     if len(digits) != 44 or not digits.startswith('86'):
-        erro("Código inválido (esperado padrão FEBRABAN de 44 dígitos iniciando com 86).")
+        error("Código inválido (esperado padrão FEBRABAN de 44 dígitos iniciando com 86).")
         return None
     try:
         return {
@@ -119,7 +119,7 @@ def parse_febraban_code(code):
             "amount": int(digits[36:41])
         }
     except Exception as e:
-        erro(f"Erro ao interpretar FEBRABAN: {e}")
+        error(f"Erro ao interpretar FEBRABAN: {e}")
         return None
 
 """
@@ -142,29 +142,9 @@ def parse_custom_lot_code(code):
             "cnpj8": match.group(7)
         }
     except Exception as e:
-        erro(f"Erro ao interpretar código customizado: {e}")
+        error(f"Erro ao interpretar código customizado: {e}")
         return None
 
-"""
-
-Verfica e interpreta um código de produto no formato: <id_produto><id_empresa><id_segmento>
-Exemplo: 001002003
-
-"""
-def parse_custom_product_code(code):
-    match = re.fullmatch(r'(\d{3})(\d{3})(\d{3})', code)
-    if not match:
-        return None
-    try:
-        return {
-            "product_id": int(match.group(1)),
-            "supplier_id": int(match.group(2)),
-            "segment_id": int(match.group(3))
-        }
-    except Exception as e:
-        erro(f"Erro ao interpretar código de produto customizado: {e}")
-        return None
-    
 """
 
 A cada interação com recebimento de lote ou saida de produto, é necessário atualizar estoque
@@ -205,45 +185,46 @@ def fill_stock(conn):
     data = parse_custom_lot_code(code) if code.startswith("RECEIVE") else parse_febraban_code(code)
 
     if not data or data["validity"] < datetime.date.today():
-        erro("Lote inválido ou vencido.")
+        error("Lote inválido ou vencido.")
         return
 
     try:
         with conn.cursor() as cur:
             cur.execute("SELECT id FROM segments WHERE id = %s", (data["segment_id"],))
             if not cur.fetchone():
-                cur.execute("INSERT INTO segments (id, name) VALUES (%s, %s)", (data["segment_id"], f"Segment {data['segment_id']}"))
-                make_audit(cur, "segments", "INSERT", data)
+                error("Segmento não existe!")
+                return
 
+            cur.execute("SELECT id FROM suppliers WHERE cnpj LIKE %s", (data["cnpj8"] + '%',))
+            if not cur.fetchone():
+                error("Fornecedor não existe!")
+                return
+
+            cur.execute("SELECT id FROM products WHERE id = %s", (data["product_id"],))
+            if not cur.fetchone():
+                error("Produto não existe!")
+                return
+
+            cur.execute("SELECT id FROM lots WHERE code = %s", (code,))
+            if cur.fetchone():
+                error("Este lote já foi registrado.")
+                return
+            
             cur.execute("SELECT id FROM suppliers WHERE cnpj LIKE %s", (data["cnpj8"] + '%',))
             row = cur.fetchone()
             if row:
                 company_id = row[0]
             else:
-                cur.execute("INSERT INTO suppliers (name, segment_id, cnpj) VALUES (%s, %s, %s) RETURNING id",
-                            (f"Company {data['cnpj8']}", data["segment_id"], data["cnpj8"] + "000000"))
-                company_id = cur.fetchone()[0]
-                make_audit(cur, "suppliers", "INSERT", data)
-
-            cur.execute("SELECT id FROM products WHERE id = %s", (data["product_id"],))
-            if not cur.fetchone():
-                cur.execute("""
-                    INSERT INTO products (id, code, name, price, company_id)
-                    VALUES (%s, %s, %s, %s, %s)
-                """, (
-                    data["product_id"],
-                    str(data["product_id"]).zfill(13),
-                    f"Product {data['product_id']}",
-                    data["price"],
-                    company_id
-                ))
-                cur.execute("INSERT INTO stock (product_id, quantity) VALUES (%s, 0)", (data["product_id"],))
-                make_audit(cur, "products", "INSERT", data)
-
-            cur.execute("SELECT id FROM lots WHERE code = %s", (code,))
-            if cur.fetchone():
-                erro("Este lote já foi registrado.")
+                error("Fornecedor não existe!")
                 return
+                
+            cur.execute("""
+                SELECT id FROM product_supplier
+                WHERE product_id = %s AND supplier_id = %s AND segment_id = %s
+            """, (data["product_id"], company_id, data["segment_id"]))
+            row = cur.fetchone()
+            if row:
+                ps_id = row[0]
 
             cur.execute("INSERT INTO lots (code, product_id, quantity, validity) VALUES (%s, %s, %s, %s)",
                         (code, data["product_id"], data["amount"], data["validity"]))
@@ -257,11 +238,11 @@ def fill_stock(conn):
             """, (trans_id, data["product_id"], data["amount"], data["price"]))
             make_audit(cur, "transaction_items", "INSERT", data)
 
-            update_stock(cur, data["product_id"], data["amount"], "entry")
+            update_stock(cur, ps_id, data["amount"], "entry")
             conn.commit()
-            sucesso(f"{data['amount']} unidades adicionadas ao estoque do produto {data['product_id']}")
+            success(f"{data['amount']} unidades adicionadas ao estoque do produto {data['product_id']}")
     except Exception as e:
-        erro(f"Erro ao adicionar estoque: {e}")
+        error(f"Erro ao adicionar estoque: {e}")
         conn.rollback()
 
 """
@@ -306,7 +287,7 @@ def make_checkout(conn):
                 data = None
                 product_supplier_id = None
 
-                if code.startswith("LOTE"):
+                if code.startswith("RECEIVE"):
                     data = parse_custom_lot_code(code)
                     if data:
                         cur.execute("""
@@ -329,23 +310,22 @@ def make_checkout(conn):
                         row = cur.fetchone()
                         product_supplier_id = row[0] if row else None
 
+                elif code.startswith("PROD"):
+                    cur.execute("SELECT id FROM product_supplier WHERE code = %s", (code,))
+                    row = cur.fetchone()
+                    product_supplier_id = row[0] if row else None
+
                 else:
-                    parsed = parse_custom_product_code(code)
-                    if parsed:
-                        cur.execute("""
-                            SELECT id FROM product_supplier
-                            WHERE product_id = %s AND supplier_id = %s AND segment_id = %s
-                        """, (parsed["product_id"], parsed["supplier_id"], parsed["segment_id"]))
-                        row = cur.fetchone()
-                        product_supplier_id = row[0] if row else None
+                    error("Código inválido.")
+                    continue
 
                 if not product_supplier_id:
-                    erro("Produto não encontrado.")
+                    error("Produto não encontrado.")
                     continue
 
                 produto = fetch_product(conn, product_supplier_id)
                 if not produto or produto["stock"] <= 0:
-                    erro(f"Produto sem estoque ou inválido.")
+                    error(f"Produto sem estoque ou inválido.")
                     continue
 
                 cur.execute("""
@@ -355,14 +335,14 @@ def make_checkout(conn):
                 total += produto["price"]
                 itens.append((produto["name"], produto["price"]))
                 vendidos.append((produto["id"], 1))
-                sucesso(f"[Produto] {produto['name']} | R$ {produto['price']:.2f}")
+                success(f"[Produto] {produto['name']} | R$ {produto['price']:.2f}")
 
             for prod_id, qtd in vendidos:
                 update_stock(cur, prod_id, qtd, "checkout")
             conn.commit()
 
     except Exception as e:
-        erro(f"Erro no checkout: {e}")
+        error(f"Erro no checkout: {e}")
         conn.rollback()
 
     if contas_febraban:
@@ -389,18 +369,24 @@ def list_products(conn):
     try:
         with conn.cursor() as cur:
             cur.execute("""
-                select p.name as nome, pe.code as codigo_produto, pe.price as preço, s.quantity as estoque, l.validity as validade from product_supplier pe
-                join products p on pe.product_id = p.id
-                left join lots l on l.product_id = p.id
-                left join stock s on s.product_id = pe.id
-                order by s.quantity desc, l.validity desc;
+                SELECT 
+                    p.name AS nome,
+                    pe.code AS codigo_produto,
+                    pe.price AS preço,
+                    s.quantity AS estoque,
+                    l.validity AS validade
+                FROM product_supplier pe
+                JOIN products p ON pe.product_id = p.id
+                LEFT JOIN lots l ON l.product_id = pe.id
+                LEFT JOIN stock s ON s.product_id = pe.id
+                ORDER BY s.quantity DESC, l.validity DESC;
             """)
             cols = [d[0] for d in cur.description]
             df = pd.DataFrame(cur.fetchall(), columns=cols)
         print("\nProdutos disponíveis:\n")
         print(df.to_string(index=False))
     except Exception as e:
-        erro(f"Erro ao listar produtos: {e}")
+        error(f"Erro ao listar produtos: {e}")
 
 """
 
@@ -446,7 +432,7 @@ def create_product(conn):
 
             cur.execute("SELECT id FROM products WHERE name ILIKE %s", (name,))
             if cur.fetchone():
-                erro("Já existe um produto com esse nome!")
+                error("Já existe um produto com esse nome!")
                 return
 
             cur.execute("INSERT INTO products (name) VALUES (%s) RETURNING id", (name,))
@@ -468,10 +454,10 @@ def create_product(conn):
             make_audit(cur, "stock", "INSERT", {"product_id": product_supplier_id, "quantity": 0})
 
             conn.commit()
-            sucesso(f"Produto '{name}' criado com o código '{code}'.")
+            success(f"Produto '{name}' criado com o código '{code}'.")
 
     except Exception as e:
-        erro(f"Erro criado produto: {e}")
+        error(f"Erro criado produto: {e}")
         conn.rollback()
 
 def menu(conn):
@@ -497,7 +483,7 @@ def menu(conn):
             info("Finalizando sistema.")
             break
         else:
-            erro("Opção inválida.")
+            error("Opção inválida.")
 
 if __name__ == "__main__":
     conn = get_connection()
