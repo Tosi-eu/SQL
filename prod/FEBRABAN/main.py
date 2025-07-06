@@ -245,8 +245,8 @@ def fill_stock(conn):
                 erro("Este lote já foi registrado.")
                 return
 
-            cur.execute("INSERT INTO lots (code, product_id, quantity) VALUES (%s, %s, %s)",
-                        (code, data["product_id"], data["amount"]))
+            cur.execute("INSERT INTO lots (code, product_id, quantity, validity) VALUES (%s, %s, %s, %s)",
+                        (code, data["product_id"], data["amount"], data["validity"]))
             make_audit(cur, "lots", "INSERT", data)
 
             cur.execute("INSERT INTO transactions (transaction_type) VALUES ('entry') RETURNING id")
@@ -377,17 +377,23 @@ def make_checkout(conn):
 
 """
 
-seleciona todos os produtos e os lista em forma de tabela
+seleciona todos os produtos e os lista em forma de tabela, trazendo informações de produto
+- nome
+- codigo
+- preco
+- estoque (caso houver)
+- validade (caso houver)
 
 """
 def list_products(conn):
     try:
         with conn.cursor() as cur:
             cur.execute("""
-                select p.id, p.name, pe.code, pe.price, s.quantity from product_supplier pe
+                select p.name as nome, pe.code as codigo_produto, pe.price as preço, s.quantity as estoque, l.validity as validade from product_supplier pe
                 join products p on pe.product_id = p.id
+                left join lots l on l.product_id = p.id
                 left join stock s on s.product_id = pe.id
-                order by p.id;
+                order by s.quantity desc, l.validity desc;
             """)
             cols = [d[0] for d in cur.description]
             df = pd.DataFrame(cur.fetchall(), columns=cols)
@@ -478,7 +484,7 @@ def menu(conn):
         print("     5 - Sair")
         print(Fore.GREEN + "==================================\n")
 
-        op = input_info("Select an option: ").strip()
+        op = input_info("Selecione uma opção: ").strip()
         if op == "1":
             fill_stock(conn)
         elif op == "2":
