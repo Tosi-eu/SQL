@@ -29,8 +29,10 @@ CREATE TABLE product_supplier (
 );
 
 CREATE TABLE stock (
-    product_id INT PRIMARY KEY,
+    product_id INT,
+    validity DATE,
     quantity INT NOT NULL DEFAULT 0,
+    PRIMARY KEY (product_id, validity),
     FOREIGN KEY (product_id) REFERENCES product_supplier(id) ON DELETE CASCADE,
     CHECK (quantity >= 0)
 );
@@ -40,7 +42,6 @@ CREATE TABLE lots (
     code VARCHAR(44) UNIQUE NOT NULL,
     product_id INT,
     quantity INT NOT NULL,
-    validity DATE NOT NULL,
     received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (product_id) REFERENCES product_supplier(id),
     CHECK (quantity > 0)
@@ -101,9 +102,9 @@ INSERT INTO product_supplier (code, product_id, supplier_id, segment_id, price) 
   ('PROD004004004', 4, 4, 4, 7.75),
   ('PROD005005005', 5, 5, 5, 5.20);
 
-INSERT INTO stock (product_id, quantity) VALUES
-  (1, 10),
-  (2, 15),
-  (3, 20),
-  (4, 5),
-  (5, 12);
+INSERT INTO stock (product_id, quantity, validity) VALUES
+  (1, 10, '2025-12-31'),
+  (2, 15, '2025-12-30'),
+  (3, 20, '2025-12-29'),
+  (4, 5, '2025-12-28'),
+  (5, 12, '2025-12-27');
