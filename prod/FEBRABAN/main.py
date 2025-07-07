@@ -1,9 +1,8 @@
 import json
 import os
 import re
-import psycopg2
-from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
-import psycopg2.extras
+import mysql.connector
+from mysql.connector import errorcode
 from decimal import Decimal
 import datetime
 from colorama import init, Fore, Style
@@ -18,61 +17,63 @@ def input_info(prompt): return input(f"{Fore.LIGHTYELLOW_EX}[INFO]{Style.RESET_A
 
 """
 
-Entra no banco padrão do postgres, troca o level de isolamento para permitir operações sem commit e rollback, cria o banco principal e fecha conexão.
+Entra no banco padrão do mysql, troca o level de isolamento para permitir operações sem commit e rollback, cria o banco principal e fecha conexão.
 Conecta no banco criado, cria a tabela e popula algumas com dados.
 
 """
 def get_connection():
     try:
-        temp_conn = psycopg2.connect(
-            dbname='postgres', #não mexe
-            user='postgres', #não mexe
-            password='postgres_Eu12', #sua senha
-            host='localhost', #não mexe
-            port=5432 #não mexe
+        temp_conn = mysql.connector.connect(
+            user='root', #seu usuario
+            password='root', #sua usuario
+            host='localhost' #nao mexe
         )
-        temp_conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT) #permite transação sem commit ou rollback
+        temp_conn.autocommit = True
         temp_cursor = temp_conn.cursor()
 
-        temp_cursor.execute("SELECT 1 FROM pg_database WHERE datname = 'market'")
-        if not temp_cursor.fetchone():
-            temp_cursor.execute("CREATE DATABASE market")
-            success("Banco de dados 'market' criado.")
+        temp_cursor.execute("CREATE DATABASE IF NOT EXISTS market")
+        success("Banco de dados 'market' verificado/criado.")
         temp_cursor.close()
         temp_conn.close()
 
-        conn = psycopg2.connect(
-            dbname='market', #não mexe
-            user='postgres', #se você alterou user em cima, use o mesmo aqui
-            password='postgres_Eu12', #sua senha
-            host='localhost', #nao mexe
-            port=5432 #nao mexe
+        conn = mysql.connector.connect(
+            user='root', #seu usuario
+            password='root', # sua senha
+            host='localhost', # mao mexe
+            database='market' # nao mexe
         )
         info("Conectado ao banco 'market'.")
 
-        with conn.cursor() as cur:
-            cur.execute("""
-                SELECT EXISTS (
-                    SELECT FROM information_schema.tables 
-                    WHERE table_schema = 'public' AND table_name = 'products'
-                )
-            """)
-            if not cur.fetchone()[0]:
-                schema_path = os.path.join(os.getcwd(), "schema.sql")
-                with open(schema_path, "r", encoding="utf-8") as f:
-                    cur.execute(f.read())
-                conn.commit()
-                success("Schema criado com sucesso.")
-            else:
-                info("Schema já existe.")
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT COUNT(*) FROM information_schema.tables 
+            WHERE table_schema = 'market' AND table_name = 'products'
+        """)
+        if cur.fetchone()[0] == 0:
+            schema_path = os.path.join(os.getcwd(), "schema.sql")
+            with open(schema_path, "r", encoding="utf-8") as f:
+                cur.execute("SET FOREIGN_KEY_CHECKS = 0;")  
+                for statement in f.read().split(";"):
+                    if statement.strip():
+                        cur.execute(statement)
+            conn.commit()
+            success("Schema criado com sucesso.")
+        else:
+            info("Schema já existe.")
+        cur.close()
         return conn
-    except Exception as e:
-        error(f"Erro ao conectar ou configurar o banco: {e}")
-        return None
 
+    except mysql.connector.Error as err:
+        if err.errno == errorcode.ER_ACCESS_DENIED_ERROR:
+            error("Usuário ou senha inválidos.")
+        elif err.errno == errorcode.ER_BAD_DB_ERROR:
+            error("Banco de dados inexistente.")
+        else:
+            error(err)
+        return None
 """
 
-necessário para fazer auditoria. Os tipos do python não são os mesmos do postgres, especialmente Decimal e datetime,
+necessário para fazer auditoria. Os tipos do python não são os mesmos do mysql, especialmente Decimal e datetime,
 então converte Decimal para float e datetime para string
 
 """
@@ -97,8 +98,7 @@ def make_audit(cur, table, operation, data):
     cur.execute("""
         INSERT INTO audit_log (table_name, operation, changed_data)
         VALUES (%s, %s, %s)
-    """, (table, operation, psycopg2.extras.Json(json_data)))
-
+    """, (table, operation, json.dumps(json_data)))
 """
 
 verifica se o código é febraban e se for, extrai cada parte de dentro dele
@@ -230,8 +230,8 @@ def fill_stock(conn):
                         (code, data["product_id"], data["amount"], data["validity"]))
             make_audit(cur, "lots", "INSERT", data)
 
-            cur.execute("INSERT INTO transactions (transaction_type) VALUES ('entry') RETURNING id")
-            trans_id = cur.fetchone()[0]
+            cur.execute("INSERT INTO transactions (transaction_type) VALUES ('entry')")
+            trans_id = cur.lastrowid
             cur.execute("""
                 INSERT INTO transaction_items (transaction_id, product_id, quantity, price)
                 VALUES (%s, %s, %s, %s)
@@ -276,8 +276,8 @@ def make_checkout(conn):
 
     try:
         with conn.cursor() as cur:
-            cur.execute("INSERT INTO transactions (transaction_type) VALUES ('checkout') RETURNING id")
-            trans_id = cur.fetchone()[0]
+            cur.execute("INSERT INTO transactions (transaction_type) VALUES ('checkout')")
+            trans_id = cur.lastrowid
 
             while True:
                 code = input_info("Escaneie o produto ou lote (ou 'FIM'): ").strip()
@@ -415,8 +415,8 @@ def create_product(conn):
             if row:
                 segment_id = row[0]
             else:
-                cur.execute("INSERT INTO segments (name) VALUES (%s) RETURNING id", (segment_name,))
-                segment_id = cur.fetchone()[0]
+                cur.execute("INSERT INTO segments (name) VALUES (%s)", (segment_name,))
+                segment_id = cur.lastrowid
                 make_audit(cur, "segments", "INSERT", {"name": segment_name})
 
             # Supplier
@@ -425,18 +425,18 @@ def create_product(conn):
             if row:
                 supplier_id = row[0]
             else:
-                cur.execute("INSERT INTO suppliers (name, cnpj) VALUES (%s, %s) RETURNING id",
+                cur.execute("INSERT INTO suppliers (name, cnpj) VALUES (%s, %s)",
                             (supplier_name, cnpj))
-                supplier_id = cur.fetchone()[0]
+                supplier_id = cur.lastrowid
                 make_audit(cur, "suppliers", "INSERT", {"name": supplier_name, "cnpj": cnpj})
 
-            cur.execute("SELECT id FROM products WHERE name ILIKE %s", (name,))
+            cur.execute("SELECT id FROM products WHERE LOWER(name) = LOWER(%s)", (name,))
             if cur.fetchone():
                 error("Já existe um produto com esse nome!")
                 return
 
-            cur.execute("INSERT INTO products (name) VALUES (%s) RETURNING id", (name,))
-            product_id = cur.fetchone()[0]
+            cur.execute("INSERT INTO products (name) VALUES (%s)", (name,))
+            product_id = cur.lastrowid
             make_audit(cur, "products", "INSERT", {"name": name})
 
             # Product-Supplier
@@ -444,9 +444,8 @@ def create_product(conn):
             cur.execute("""
                 INSERT INTO product_supplier (product_id, supplier_id, segment_id, price, code)
                 VALUES (%s, %s, %s, %s, %s)
-                RETURNING id
             """, (product_id, supplier_id, segment_id, price, code))
-            product_supplier_id = cur.fetchone()[0]
+            product_supplier_id = cur.lastrowid
             make_audit(cur, "product_supplier", "INSERT", {"product_id": product_id, "supplier_id": supplier_id})
 
             # Stock
