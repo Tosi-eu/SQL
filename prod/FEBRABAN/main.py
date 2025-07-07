@@ -25,7 +25,7 @@ def get_connection():
     try:
         temp_conn = mysql.connector.connect(
             user='root', #seu usuario
-            password='root', #sua usuario
+            password='root', #sua senha
             host='localhost' #nao mexe
         )
         temp_conn.autocommit = True
