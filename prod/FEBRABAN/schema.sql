@@ -1,55 +1,63 @@
+-- Criação de tabelas
+
 CREATE TABLE segmentos (
-    id SERIAL PRIMARY KEY,
-    nome TEXT NOT NULL UNIQUE
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nome VARCHAR(255) NOT NULL UNIQUE
 );
 
 CREATE TABLE fornecedores (
-    id SERIAL PRIMARY KEY,
-    nome TEXT NOT NULL UNIQUE,
-    cnpj VARCHAR(14) UNIQUE NOT NULL
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nome VARCHAR(255) NOT NULL UNIQUE,
+    cnpj VARCHAR(14) NOT NULL UNIQUE
 );
 
 CREATE TABLE produtos (
-    id SERIAL PRIMARY KEY,
-    nome TEXT NOT NULL
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nome VARCHAR(255) NOT NULL
 );
 
 CREATE TABLE produto_empresa (
-    id SERIAL PRIMARY KEY,
-    codigo VARCHAR(13),
-    id_produto INTEGER REFERENCES produtos(id) ON DELETE CASCADE,
-    id_empresa INTEGER REFERENCES fornecedores(id) ON DELETE CASCADE,
-    id_segmento INTEGER REFERENCES segmentos(id),
-    preco NUMERIC(10, 2) NOT NULL CHECK (preco > 0),
-    UNIQUE(id_produto, id_empresa),
-    UNIQUE(codigo)
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    codigo VARCHAR(13) UNIQUE,
+    id_produto INT NOT NULL,
+    id_empresa INT NOT NULL,
+    id_segmento INT NOT NULL,
+    preco DECIMAL(10, 2) NOT NULL,
+    UNIQUE (id_produto, id_empresa),
+    FOREIGN KEY (id_produto) REFERENCES produtos(id) ON DELETE CASCADE,
+    FOREIGN KEY (id_empresa) REFERENCES fornecedores(id) ON DELETE CASCADE,
+    FOREIGN KEY (id_segmento) REFERENCES segmentos(id)
 );
 
 CREATE TABLE estoque (
-    id_produto INTEGER PRIMARY KEY REFERENCES produto_empresa(id) ON DELETE CASCADE,
-    quantidade INTEGER NOT NULL DEFAULT 0 CHECK (quantidade >= 0)
+    id_produto INT PRIMARY KEY,
+    quantidade INT NOT NULL DEFAULT 0,
+    FOREIGN KEY (id_produto) REFERENCES produto_empresa(id) ON DELETE CASCADE
 );
 
 CREATE TABLE lotes (
-    id SERIAL PRIMARY KEY,
-    codigo VARCHAR(44) UNIQUE NOT NULL,
-    id_produto INTEGER REFERENCES produto_empresa(id),
-    quantidade INTEGER NOT NULL CHECK (quantidade > 0),
-    recebido TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    codigo VARCHAR(44) NOT NULL UNIQUE,
+    id_produto INT,
+    quantidade INT NOT NULL,
+    recebido TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_produto) REFERENCES produto_empresa(id)
 );
 
 CREATE TABLE transacoes (
-    id SERIAL PRIMARY KEY,
-    tipo_transacao VARCHAR(10) NOT NULL CHECK (tipo_transacao IN ('checkout', 'entry')),
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    tipo_transacao ENUM('checkout', 'entry') NOT NULL,
     data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE itens_transacionados (
-    id SERIAL PRIMARY KEY,
-    id_transacao INTEGER REFERENCES transacoes(id) ON DELETE CASCADE,
-    id_produto_empresa INTEGER REFERENCES produto_empresa(id) ON DELETE CASCADE,
-    quantidade INTEGER NOT NULL CHECK (quantidade > 0),
-    preco NUMERIC(10, 2) NOT NULL CHECK (preco > 0)
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    id_transacao INT NOT NULL,
+    id_produto_empresa INT NOT NULL,
+    quantidade INT NOT NULL,
+    preco DECIMAL(10, 2) NOT NULL,
+    FOREIGN KEY (id_transacao) REFERENCES transacoes(id) ON DELETE CASCADE,
+    FOREIGN KEY (id_produto_empresa) REFERENCES produto_empresa(id) ON DELETE CASCADE
 );
 
 -- Segmentos
@@ -60,7 +68,7 @@ INSERT INTO segmentos (nome) VALUES
   ('Limpeza'),
   ('Bebidas Alcoólicas');
 
--- Empresas
+-- Fornecedores
 INSERT INTO fornecedores (nome, cnpj) VALUES
   ('Panificadora Pão Quente Ltda', '11111111000191'),
   ('Laticínios Vale Verde', '22222222000192'),
@@ -68,7 +76,7 @@ INSERT INTO fornecedores (nome, cnpj) VALUES
   ('Limpa Fácil Indústria Química', '44444444000194'),
   ('Cervejaria Serra Alta', '55555555000195');
 
--- Produtos genéricos
+-- Produtos
 INSERT INTO produtos (nome) VALUES
   ('Pão Francês 1kg'),
   ('Queijo Minas Frescal 500g'),
@@ -76,7 +84,7 @@ INSERT INTO produtos (nome) VALUES
   ('Desinfetante Lavanda 2L'),
   ('Cerveja Pilsen 600ml');
 
--- Relações produto-empresa
+-- Produto-Empresa
 INSERT INTO produto_empresa (id_produto, id_empresa, id_segmento, preco) VALUES
   (1, 1, 1, 9.90),
   (2, 2, 2, 18.50),
@@ -84,7 +92,7 @@ INSERT INTO produto_empresa (id_produto, id_empresa, id_segmento, preco) VALUES
   (4, 4, 4, 7.75),
   (5, 5, 5, 5.20);
 
--- Estoque inicial
+-- Estoque
 INSERT INTO estoque (id_produto, quantidade) VALUES
   (1, 10),
   (2, 15),
