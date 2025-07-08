@@ -1,3 +1,4 @@
+-- Tabelas principais
 CREATE TABLE segments (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) NOT NULL UNIQUE
@@ -28,25 +29,29 @@ CREATE TABLE product_supplier (
     CHECK (price > 0)
 );
 
-CREATE TABLE stock (
-    product_id INT,
-    validity DATE,
+-- Controle de estoque por lote
+CREATE TABLE stock_batches (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    product_id INT NOT NULL,
+    validity DATE NOT NULL,
     quantity INT NOT NULL DEFAULT 0,
-    PRIMARY KEY (product_id, validity),
+    received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (product_id) REFERENCES product_supplier(id) ON DELETE CASCADE,
     CHECK (quantity >= 0)
 );
 
+-- Lotes: se quiser manter metadados extras
 CREATE TABLE lots (
     id INT AUTO_INCREMENT PRIMARY KEY,
     code VARCHAR(44) UNIQUE NOT NULL,
     product_id INT,
     quantity INT NOT NULL,
     received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (product_id) REFERENCES product_supplier(id),
+    FOREIGN KEY (product_id) REFERENCES product_supplier(id) ON DELETE CASCADE,
     CHECK (quantity > 0)
 );
 
+-- Movimentação de estoque
 CREATE TABLE transactions (
     id INT AUTO_INCREMENT PRIMARY KEY,
     transaction_type ENUM('checkout', 'entry') NOT NULL,
@@ -65,6 +70,7 @@ CREATE TABLE transaction_items (
     CHECK (price > 0)
 );
 
+-- Log de auditoria
 CREATE TABLE audit_log (
     id INT AUTO_INCREMENT PRIMARY KEY,
     table_name VARCHAR(255) NOT NULL,
@@ -102,7 +108,7 @@ INSERT INTO product_supplier (code, product_id, supplier_id, segment_id, price) 
   ('PROD004004004', 4, 4, 4, 7.75),
   ('PROD005005005', 5, 5, 5, 5.20);
 
-INSERT INTO stock (product_id, quantity, validity) VALUES
+INSERT INTO stock_batches (product_id, quantity, validity) VALUES
   (1, 10, '2025-12-31'),
   (2, 15, '2025-12-30'),
   (3, 20, '2025-12-29'),
