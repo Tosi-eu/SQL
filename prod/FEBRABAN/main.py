@@ -1,7 +1,7 @@
 import os
 import re
-import psycopg2
-from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
+import mysql.connector
+from mysql.connector import errorcode
 import datetime
 from decimal import Decimal
 from prettytable import PrettyTable
@@ -14,58 +14,47 @@ e encerra a conexão com o banco antigo para se conectar ao novo e criar as tabe
 """
 def get_connection():
     try:
-        conexao_temporaria = psycopg2.connect(
-            dbname='postgres',
-            user='postgres',
-            password='postgres_Eu12',
+        conexao_temporaria = mysql.connector.connect(
             host='localhost',
-            port=5432
+            user='root',
+            password='root',
+            autocommit=True
         )
-        conexao_temporaria.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+
         cursor_temporario = conexao_temporaria.cursor()
-
-        cursor_temporario.execute("SELECT 1 FROM pg_database WHERE datname = 'supermercado'")
-        banco_existe = cursor_temporario.fetchone()
-        if not banco_existe:
-            cursor_temporario.execute("CREATE DATABASE supermercado")
-            print("Banco de dados 'supermercado' criado.")
-        else:
-            print("Banco de dados 'supermercado' já existe.")
-
+        cursor_temporario.execute("CREATE DATABASE IF NOT EXISTS supermercado")
+        print("Banco de dados 'supermercado' criado ou já existente.")
         cursor_temporario.close()
         conexao_temporaria.close()
 
-        conexao = psycopg2.connect(
-            dbname='supermercado',
-            user='postgres',
-            password='postgres_Eu12',
+        conexao = mysql.connector.connect(
             host='localhost',
-            port=5432
+            user='root',
+            password='root',
+            database='supermercado'
         )
-        print("Conectado ao banco 'supermercado'.")
 
+        print("Conectado ao banco 'supermercado'.")
         with conexao.cursor() as cur:
             cur.execute("""
-                SELECT EXISTS (
-                    SELECT FROM information_schema.tables 
-                    WHERE table_schema = 'public' AND table_name = 'produtos'
-                )
+                SELECT COUNT(*) FROM information_schema.tables
+                WHERE table_schema = 'supermercado' AND table_name = 'produtos'
             """)
-            tabela_existe = cur.fetchone()[0]
-
-            if not tabela_existe:
-                caminho_schema = os.path.join(os.getcwd(), "schema.sql") # dá para trocar o os.cwd() pelo caminho do arquivo
+            if cur.fetchone()[0] == 0:
+                caminho_schema = os.path.join(os.getcwd(), "schema.sql")
                 with open(caminho_schema, "r", encoding="utf-8") as arquivo:
                     sql = arquivo.read()
-                    cur.execute(sql)
+                    for statement in sql.split(";"):
+                        if statement.strip():
+                            cur.execute(statement)
                 conexao.commit()
-                print("Script schema.sql executado.")
+                print("Script SQL executado.")
             else:
-                print("Tabelas já existem. Pulando execução do schema.sql.")
-
+                print("Tabelas já existem.")
         return conexao
-    except psycopg2.Error as e:
-        print(f"Falha ao conectar ao banco: {e}")
+
+    except mysql.connector.Error as err:
+        print(f"Erro ao conectar: {err}")
         return None
 
 """
@@ -84,6 +73,7 @@ Posição	       Significado	      Valor
 37 a 41	        Quantidade	        00010
 42 a 44	        Ajuste	            000
 
+TODO adicionar company_id
 """
 def parse_codigo_febraban(codigo):
     digitos = re.sub(r'\D', '', codigo)
@@ -185,9 +175,9 @@ def adicionar_estoque(conexao):
             if row:
                 empresa_id = row[0]
             else:
-                cur.execute("INSERT INTO fornecedores (nome, cnpj) VALUES (%s, %s) RETURNING id",
+                cur.execute("INSERT INTO fornecedores (nome, cnpj) VALUES (%s, %s)",
                             (f"Empresa {dados['cnpj8']}", dados["cnpj8"] + "000000"))
-                empresa_id = cur.fetchone()[0]
+                empresa_id = cur.lastrowid
 
             # Criação de produto
             cur.execute("SELECT id FROM produtos WHERE id = %s", (dados["id_produto"],))
@@ -213,9 +203,9 @@ def adicionar_estoque(conexao):
             else:
                 cur.execute("""
                     INSERT INTO produto_empresa (id_produto, id_empresa, id_segmento, preco, codigo)
-                    VALUES (%s, %s, %s, %s, %s) RETURNING id
+                    VALUES (%s, %s, %s, %s, %s)
                 """, (dados["id_produto"], empresa_id, dados["id_segmento"], dados["valor"], codigo_prod))
-                id_produto_empresa = cur.fetchone()[0]
+                id_produto_empresa = cur.lastrowid
                 cur.execute("INSERT INTO estoque (id_produto, quantidade) VALUES (%s, 0)", (id_produto_empresa,))
 
             # Verificação do lote
@@ -227,8 +217,8 @@ def adicionar_estoque(conexao):
             # Inserções finais
             cur.execute("INSERT INTO lotes (codigo, id_produto, quantidade) VALUES (%s, %s, %s)",
                         (codigo, id_produto_empresa, dados["quantidade"]))
-            cur.execute("INSERT INTO transacoes (tipo_transacao) VALUES ('entry') RETURNING id")
-            trans_id = cur.fetchone()[0]
+            cur.execute("INSERT INTO transacoes (tipo_transacao) VALUES ('entry')")
+            trans_id = cur.lastrowid
             cur.execute("INSERT INTO itens_transacionados (id_transacao, id_produto_empresa, quantidade, preco) VALUES (%s, %s, %s, %s)",
                         (trans_id, id_produto_empresa, dados["quantidade"], dados["valor"]))
             atualizar_estoque(cur, id_produto_empresa, dados["quantidade"], "entry")
@@ -264,8 +254,8 @@ def processo_checkout(conexao):
 
     try:
         with conexao.cursor() as cur:
-            cur.execute("INSERT INTO transacoes (tipo_transacao) VALUES ('checkout') RETURNING id")
-            trans_id = cur.fetchone()[0]
+            cur.execute("INSERT INTO transacoes (tipo_transacao) VALUES ('checkout')")
+            trans_id = cur.lastrowid
 
             while True:
                 codigo = input("Digite ou escaneie o código (FIM para encerrar): ").strip()
@@ -429,8 +419,8 @@ def criar_produto(conexao):
             if seg:
                 id_segmento = seg[0]
             else:
-                cur.execute("INSERT INTO segmentos (nome) VALUES (%s) RETURNING id", (nome_segmento,))
-                id_segmento = cur.fetchone()[0]
+                cur.execute("INSERT INTO segmentos (nome) VALUES (%s)", (nome_segmento,))
+                id_segmento = cur.lastrowid
                 print(f"Segmento '{nome_segmento}' criado.")
 
             # Fornecedor
@@ -441,9 +431,9 @@ def criar_produto(conexao):
             else:
                 cur.execute("""
                     INSERT INTO fornecedores (nome, cnpj)
-                    VALUES (%s, %s) RETURNING id
+                    VALUES (%s, %s)
                 """, (nome_fornecedor, cnpj))
-                id_fornecedor = cur.fetchone()[0]
+                id_fornecedor = cur.lastrowid
                 print(f"Fornecedor '{nome_fornecedor}' criado.")
 
             # Produto
@@ -452,16 +442,16 @@ def criar_produto(conexao):
                 print("Já existe produto com este nome.")
                 return
 
-            cur.execute("INSERT INTO produtos (nome) VALUES (%s) RETURNING id", (nome,))
-            id_produto = cur.fetchone()[0]
+            cur.execute("INSERT INTO produtos (nome) VALUES (%s)", (nome,))
+            id_produto = cur.lastrowid
 
             # Produto-Empresa
             codigo = f"PROD{id_produto:03d}{id_fornecedor:03d}{id_segmento:03d}"
             cur.execute("""
                 INSERT INTO produto_empresa (id_produto, id_empresa, id_segmento, preco, codigo)
-                VALUES (%s, %s, %s, %s, %s) RETURNING id
+                VALUES (%s, %s, %s, %s, %s)
             """, (id_produto, id_fornecedor, id_segmento, preco, codigo))
-            id_produto_empresa = cur.fetchone()[0]
+            id_produto_empresa = cur.lastrowid
 
             # Estoque
             cur.execute("INSERT INTO estoque (id_produto, quantidade) VALUES (%s, 0)", (id_produto_empresa,))
