@@ -156,13 +156,13 @@ A cada interação com recebimento de lote ou saida de produto, é necessário a
 def update_stock(cur, product_supplier_id, quantity, transaction_type, validity):
     if transaction_type == "entry":
         cur.execute("""
-            INSERT INTO stock (product_id, validity, quantity)
+            INSERT INTO stock_batches (product_id, validity, quantity)
             VALUES (%s, %s, %s)
             ON DUPLICATE KEY UPDATE quantity = quantity + VALUES(quantity)
         """, (product_supplier_id, validity, quantity))
     elif transaction_type == "checkout":
         cur.execute("""
-            UPDATE stock
+            UPDATE stock_batches
             SET quantity = quantity - %s
             WHERE product_id = %s AND validity = %s
         """, (quantity, product_supplier_id, validity))
@@ -252,16 +252,16 @@ recebe o código do produto e faz uma busca completa para obter
 """
 def fetch_product(cur, product_supplier_id):
     cur.execute("""
-        SELECT ps.id, p.name, ps.price, s.quantity
+        SELECT ps.id, p.name, ps.price, s.quantity, s.validity
         FROM product_supplier ps
         JOIN products p ON p.id = ps.product_id
-        LEFT JOIN stock s ON s.product_id = ps.id
+        LEFT JOIN stock_batches s ON s.product_id = ps.id
         WHERE ps.id = %s
         LIMIT 1
     """, (product_supplier_id,))
     r = cur.fetchone()
     if r:
-        return {"id": r[0], "name": r[1], "price": r[2], "stock": r[3]}
+        return {"id": r[0], "name": r[1], "price": r[2], "stock": r[3], "validity": r[4]}
     return None
     
 def make_checkout(conn):
@@ -310,6 +310,7 @@ def make_checkout(conn):
                 elif code.startswith("PROD"):
                     cur.execute("SELECT id FROM product_supplier WHERE code = %s", (code,))
                     row = cur.fetchone()
+                    print('row',row)
                     product_supplier_id = row[0]
                     print(product_supplier_id)
 
@@ -332,12 +333,14 @@ def make_checkout(conn):
                 """, (trans_id, produto["id"], produto["price"]))
                 total += produto["price"]
                 print(10)
+                print(produto)
                 itens.append((produto["name"], produto["price"]))
-                vendidos.append((produto["id"], 1))
+                vendidos.append((produto["id"], 1, produto["validity"]))
                 success(f"[Produto] {produto['name']} | R$ {produto['price']:.2f}")
 
-            for prod_id, qtd in vendidos:
-                update_stock(cur, prod_id, qtd, "checkout", data["validity"])
+            for prod_id, qtd, validade in vendidos:
+                update_stock(cur, prod_id, qtd, "checkout", validade)
+
             conn.commit()
 
     except Exception as e:
@@ -360,25 +363,25 @@ seleciona todos os produtos e os lista em forma de tabela, trazendo informaçõe
 - nome
 - codigo
 - preco
-- estoque (caso houver)
-- validade (caso houver)
+- estoque (caso houver) senão 0 (quando o poduto não recebeu lote)
+- validade (caso houver), senão 'Sem validade' (quando o poduto não recebeu lote)
 
 """
 def list_products(conn):
     try:
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT DISTINCT
+                SELECT
                     p.name AS nome,
                     pe.code AS codigo_produto,
                     pe.price AS preço,
-                    s.quantity AS estoque,
-                    s.validity AS validade
+                    COALESCE(MIN(s.validity), 'Sem validade') AS validade,
+                    SUM(COALESCE(s.quantity, 0)) AS estoque
                 FROM product_supplier pe
                 JOIN products p ON pe.product_id = p.id
-                LEFT JOIN lots l ON l.product_id = pe.id
-                LEFT JOIN stock s ON s.product_id = pe.id
-                ORDER BY s.quantity DESC, s.validity DESC;
+                LEFT JOIN stock_batches s ON s.product_id = pe.id
+                GROUP BY p.name, pe.code, pe.price
+                ORDER BY validade ASC;
             """)
             cols = [d[0] for d in cur.description]
             df = pd.DataFrame(cur.fetchall(), columns=cols)
@@ -386,7 +389,6 @@ def list_products(conn):
         print(df.to_string(index=False))
     except Exception as e:
         error(f"Erro ao listar produtos: {e}")
-
 """
 
 Cria um novo produto no banco
