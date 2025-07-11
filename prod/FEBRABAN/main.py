@@ -1,18 +1,17 @@
 import os
 import re
 import mysql.connector
-from mysql.connector import errorcode
 import datetime
 from decimal import Decimal
 from prettytable import PrettyTable
 
 """
 
-faz conexão com o banco padrão do postgres, cria um outro banco chamado 'supermercado'
-e encerra a conexão com o banco antigo para se conectar ao novo e criar as tabelas + inserções
+Conecta ao banco padrão, cria (se necessário) o banco 'supermercado'
+e, se ainda não houver tabelas, executa o script SQL.
 
 """
-def get_connection():
+def conectar():
     try:
         conexao_temporaria = mysql.connector.connect(
             host='localhost',
@@ -58,48 +57,62 @@ def get_connection():
         return None
 
 """
-pega um código de barras FEBRABAN  e extrai as partes, no formato
 
-Posição	       Significado	      Valor
-01	            Produto	            8
-02	            Segmento	        6
-03	            Tipo de valor	    8
-04	            Dígito Verificador  6
-05 a 15	        Valor (R$6,99)	    00000000990
-16 a 23	        CNPJ Nestlé         11111111
-24 a 31	        Data validade       20251230
-32 a 33	        Segmento	        01
-34 a 36	        Produto ID 	        001
-37 a 41	        Quantidade	        00010
-42 a 44	        Ajuste	            000
+Utilitária para limpar o código, removendo espaços e pontos
 
-TODO adicionar company_id
+"""
+def limpar_codigo(codigo: str) -> str:
+    return re.sub(r'[.\s]', '', codigo)
+
+"""
+
+Parse do código FEBRABAN (44 dígitos) com o seguinte layout:
+
+Posição          Significado         Valor
+01               Produto             8
+02               Segmento            6
+03               Tipo de valor       8
+04               Dígito Verificador  6
+05 a 15          Valor (ex: R$6,99)   00000000990
+16 a 23          CNPJ Nestlé         11111111
+24 a 31          Data validade       20251230
+32 a 33          Segmento            01
+34 a 36          Produto ID          001
+37 a 39          ID empresa          001
+40 a 44          Quantidade          00010
+
 """
 def parse_codigo_febraban(codigo):
-    digitos = re.sub(r'\D', '', codigo)
-    if len(digitos) != 44 or not digitos.startswith('86'):
-        print("Código inválido. Deve conter 44 dígitos e iniciar com 86.")
+    codigo = re.sub(r'\D', '', codigo)
+
+    if len(codigo) == 48 and codigo.startswith('86'):
+        codigo = codigo[:11] + codigo[12:23] + codigo[24:35] + codigo[36:47]
+    elif len(codigo) == 44 and codigo.startswith('86'):
+        pass  # formato já correto
+    else:
+        print("Código inválido (esperado padrão FEBRABAN de 44 dígitos iniciando com 86).")
         return None
+
     try:
-        valor = Decimal(digitos[4:15]) / 100
-        cnpj8 = digitos[15:23]
-        campo_livre = digitos[23:]
-        validade = datetime.datetime.strptime(campo_livre[0:8], "%Y%m%d").date()
-        id_segmento = int(campo_livre[8:10])
-        id_produto = int(campo_livre[10:13])
-        quantidade = int(campo_livre[13:18])
         return {
-            "valor": valor,
-            "cnpj8": cnpj8,
-            "validade": validade,
-            "id_segmento": id_segmento,
-            "id_produto": id_produto,
-            "quantidade": quantidade
+            "valor": Decimal(codigo[4:15]) / 100,
+            "cnpj8": codigo[15:23],
+            "validade": datetime.datetime.strptime(codigo[23:31], "%Y%m%d").date(),
+            "id_segmento": int(codigo[31:33]),
+            "id_produto": int(codigo[33:36]),
+            "id_empresa": int(codigo[36:39]),
+            "quantidade": int(codigo[39:44])
         }
     except Exception as e:
         print(f"Falha ao interpretar código FEBRABAN: {e}")
         return None
 
+"""
+Parse do código customizado do lote:
+Formato esperado: 
+LOTE<id_produto(3)><id_empresa(3)><id_segmento(3)><validade(8)><quantidade(5)><valor(7)><cnpj8(8)>
+Exemplo: LOTE0010010012025123000500000690002345678
+"""
 def parse_codigo_lote_customizado(codigo):
     padrao = r'LOTE(\d{3})(\d{3})(\d{3})(\d{8})(\d{5})(\d{7})(\d{8})'
     match = re.fullmatch(padrao, codigo)
@@ -108,7 +121,7 @@ def parse_codigo_lote_customizado(codigo):
     try:
         return {
             "id_produto": int(match.group(1)),
-            "empresa_id": int(match.group(2)),
+            "id_empresa": int(match.group(2)),
             "id_segmento": int(match.group(3)),
             "validade": datetime.datetime.strptime(match.group(4), "%Y%m%d").date(),
             "quantidade": int(match.group(5)),
@@ -121,38 +134,65 @@ def parse_codigo_lote_customizado(codigo):
 
 """
 
-Interpreta um código de produto no formato: PROD<id_produto><id_empresa><id_segmento>
-Exemplo: PROD001002003
+Interpreta um código de produto no formato: PROD<id_produto><id_empresa><id_segmento><validade>
+Exemplo: PROD00100200320251230
 
 """
 def parse_codigo_produto(codigo):
-    match = re.fullmatch(r'PROD(\d{3})(\d{3})(\d{3})', codigo)
+    match = re.fullmatch(r'PROD(\d{3})(\d{3})(\d{3})(\d{8})', codigo)
     if not match:
         return None
     try:
         return {
             "id_produto": int(match.group(1)),
             "id_empresa": int(match.group(2)),
-            "id_segmento": int(match.group(3))
+            "id_segmento": int(match.group(3)),
+            "validade": datetime.datetime.strptime(match.group(4), "%Y%m%d").date()
         }
     except Exception as e:
         print(f"Erro ao interpretar código PROD: {e}")
         return None
 
-def atualizar_estoque(cursor, id_produto, quantidade, tipo):
+"""
+
+Atualiza o estoque. Agora o estoque é definido por id_produto e validade.
+O parâmetro 'tipo' pode ser 'entry' ou 'checkout'.
+
+"""
+def atualizar_estoque(cursor, id_produto, validade, quantidade, tipo):
     if tipo == 'entry':
-        cursor.execute("UPDATE estoque SET quantidade = quantidade + %s WHERE id_produto = %s", (quantidade, id_produto))
+        cursor.execute(
+            "UPDATE estoque SET quantidade = quantidade + %s WHERE id_produto = %s AND validade = %s",
+            (quantidade, id_produto, validade)
+        )
     else:
-        cursor.execute("UPDATE estoque SET quantidade = quantidade - %s WHERE id_produto = %s", (quantidade, id_produto))
-        cursor.execute("SELECT quantidade FROM estoque WHERE id_produto = %s", (id_produto,))
+        cursor.execute(
+            "UPDATE estoque SET quantidade = quantidade - %s WHERE id_produto = %s AND validade = %s",
+            (quantidade, id_produto, validade)
+        )
+        cursor.execute(
+            "SELECT quantidade FROM estoque WHERE id_produto = %s AND validade = %s",
+            (id_produto, validade)
+        )
         qnt = cursor.fetchone()
         if qnt and qnt[0] < 0:
-            raise Exception(f"Estoque insuficiente para o produto ID {id_produto}")
+            raise Exception(f"Estoque insuficiente para o produto ID {id_produto} com validade {validade}")
 
-#LOTE0010010012025123000500000690002345678
+"""
+
+Entrada de lote: é permitida apenas a entrada via código customizado.
+Após validações, é atualizado o estoque considerando a validade informada no lote.
+
+"""
 def adicionar_estoque(conexao):
-    codigo = input("Digite o código de barras do lote: ").strip()
-    dados = parse_codigo_lote_customizado(codigo) if codigo.startswith('LOTE') else parse_codigo_febraban(codigo)
+    codigo = input("Digite o código de barras do lote (apenas customizado): ").strip()
+    codigo = limpar_codigo(codigo)
+
+    if not codigo.startswith('LOTE'):
+        print("Apenas códigos customizados de lote são permitidos na entrada.")
+        return
+
+    dados = parse_codigo_lote_customizado(codigo)
 
     if not dados:
         print("Código inválido.")
@@ -164,33 +204,37 @@ def adicionar_estoque(conexao):
 
     try:
         with conexao.cursor() as cur:
-            # Criação de segmento
+
+            cur.execute("SELECT id FROM lotes WHERE codigo = %s", (codigo,))
+            if cur.fetchone():
+                print("Este lote já foi registrado anteriormente.")
+                return
+        
+            # Valida existência de segmento
             cur.execute("SELECT id FROM segmentos WHERE id = %s", (dados["id_segmento"],))
             if not cur.fetchone():
-                cur.execute("INSERT INTO segmentos (id, nome) VALUES (%s, %s)", (dados["id_segmento"], f"Segmento {dados['id_segmento']}"))
+                print("Segmento inexistente!")
+                return
 
-            # Criação de fornecedor
+            # Valida existência de fornecedor (baseado no CNPJ)
             cur.execute("SELECT id FROM fornecedores WHERE cnpj LIKE %s", (dados["cnpj8"] + '%',))
-            row = cur.fetchone()
-            if row:
-                empresa_id = row[0]
+            if cur.fetchone():
+                id_empresa = dados["id_empresa"]
             else:
-                cur.execute("INSERT INTO fornecedores (nome, cnpj) VALUES (%s, %s)",
-                            (f"Empresa {dados['cnpj8']}", dados["cnpj8"] + "000000"))
-                empresa_id = cur.lastrowid
+                print("Empresa inexistente.")
+                return
 
-            # Criação de produto
+            # Valida existência de produto
             cur.execute("SELECT id FROM produtos WHERE id = %s", (dados["id_produto"],))
             if not cur.fetchone():
-                cur.execute("INSERT INTO produtos (id, nome) VALUES (%s, %s)",
-                            (dados["id_produto"], f"Produto {dados['id_produto']}"))
+                print("Produto inexistente.")
+                return
 
-            # Produto-Empresa
-            codigo_prod = f"PROD{dados['id_produto']:03d}{empresa_id:03d}{dados['id_segmento']:03d}"
+            codigo_prod = f"PROD{dados['id_produto']:03d}{id_empresa:03d}{dados['id_segmento']:03d}"
             cur.execute("""
                 SELECT id, codigo FROM produto_empresa
                 WHERE id_produto = %s AND id_empresa = %s AND id_segmento = %s
-            """, (dados["id_produto"], empresa_id, dados["id_segmento"]))
+            """, (dados["id_produto"], id_empresa, dados["id_segmento"]))
             result = cur.fetchone()
 
             if result:
@@ -204,53 +248,97 @@ def adicionar_estoque(conexao):
                 cur.execute("""
                     INSERT INTO produto_empresa (id_produto, id_empresa, id_segmento, preco, codigo)
                     VALUES (%s, %s, %s, %s, %s)
-                """, (dados["id_produto"], empresa_id, dados["id_segmento"], dados["valor"], codigo_prod))
+                """, (dados["id_produto"], id_empresa, dados["id_segmento"], dados["valor"], codigo_prod))
                 id_produto_empresa = cur.lastrowid
-                cur.execute("INSERT INTO estoque (id_produto, quantidade) VALUES (%s, 0)", (id_produto_empresa,))
 
-            # Verificação do lote
+            # Verifica se já existe entrada no estoque com a mesma validade
+            cur.execute("""
+                SELECT quantidade FROM estoque WHERE id_produto = %s AND validade = %s
+            """, (id_produto_empresa, dados["validade"]))
+            estoque_existente = cur.fetchone()
+
+            if estoque_existente:
+                # Atualiza a quantidade existente
+                cur.execute("""
+                    UPDATE estoque SET quantidade = quantidade + %s
+                    WHERE id_produto = %s AND validade = %s
+                """, (dados["quantidade"], id_produto_empresa, dados["validade"]))
+            else:
+                # Insere novo registro de estoque
+                cur.execute("""
+                    INSERT INTO estoque (id_produto, validade, quantidade)
+                    VALUES (%s, %s, %s)
+                """, (id_produto_empresa, dados["validade"], dados["quantidade"]))
+
+            # Verifica se o lote já foi registrado
             cur.execute("SELECT id FROM lotes WHERE codigo = %s", (codigo,))
             if cur.fetchone():
                 print("Este lote já foi registrado anteriormente.")
                 return
 
-            # Inserções finais
-            cur.execute("INSERT INTO lotes (codigo, id_produto, quantidade) VALUES (%s, %s, %s)",
-                        (codigo, id_produto_empresa, dados["quantidade"]))
+            # Insere o lote com a validade informada
+            cur.execute("""
+                INSERT INTO lotes (codigo, id_produto, quantidade)
+                VALUES (%s, %s, %s)
+            """, (codigo, id_produto_empresa, dados["quantidade"]))
             cur.execute("INSERT INTO transacoes (tipo_transacao) VALUES ('entry')")
             trans_id = cur.lastrowid
-            cur.execute("INSERT INTO itens_transacionados (id_transacao, id_produto_empresa, quantidade, preco) VALUES (%s, %s, %s, %s)",
-                        (trans_id, id_produto_empresa, dados["quantidade"], dados["valor"]))
-            atualizar_estoque(cur, id_produto_empresa, dados["quantidade"], "entry")
+            cur.execute("""
+                INSERT INTO itens_transacionados (id_transacao, id_produto_empresa, quantidade, preco)
+                VALUES (%s, %s, %s, %s)
+            """, (trans_id, id_produto_empresa, dados["quantidade"], dados["valor"]))
+            atualizar_estoque(cur, id_produto_empresa, dados["validade"], dados["quantidade"], "entry")
             conexao.commit()
-            print(f"{dados['quantidade']} unidades do produto {dados['id_produto']} adicionadas ao estoque.")
+            print(f"{dados['quantidade']} unidades do produto {dados['id_produto']} com validade {dados['validade']} adicionadas ao estoque.")
     except Exception as e:
         print(f"Erro ao processar lote: {e}")
         conexao.rollback()
 
-def buscar_produto(conexao, id_produto, id_empresa, id_segmento):
+"""
+
+Busca um produto (juntando informações de produto_empresa, produtos e estoque).
+Na consulta, é considerado o estoque com a validade mais próxima (menor data) dentre os registros existentes.
+
+"""
+def buscar_produto(conexao, id_produto, id_empresa, id_segmento, validade):
     try:
         with conexao.cursor() as cur:
             cur.execute("""
-                SELECT pe.id, pr.nome, pe.preco, e.quantidade
+                SELECT pe.id, pr.nome, pe.preco, e.quantidade, e.validade
                 FROM produto_empresa pe
                 JOIN produtos pr ON pr.id = pe.id_produto
-                LEFT JOIN estoque e ON e.id_produto = pe.id
+                LEFT JOIN estoque e ON e.id_produto = pe.id and e.validade = %s
                 WHERE pe.id_produto = %s AND pe.id_empresa = %s AND pe.id_segmento = %s
-            """, (id_produto, id_empresa, id_segmento))
+                ORDER BY e.validade ASC
+                LIMIT 1
+            """, (validade, id_produto, id_empresa, id_segmento))
             res = cur.fetchone()
             if res:
-                return {"id": res[0], "nome": res[1], "preco": res[2], "estoque": res[3]}
+                return {
+                    "id": res[0],
+                    "nome": res[1],
+                    "preco": res[2],
+                    "estoque": res[3],
+                    "validade": res[4]
+                }
             return None
     except Exception as e:
         print(f"Erro ao buscar produto: {e}")
         return None
-    
+
+"""
+
+Processo de checkout:
+O usuário digita códigos; se for código FEBRABAN (44 dígitos), é feita busca filtrando extraindo os campos de interesse;
+Se for PROD, busca pelo produto e utiliza o registro de estoque com a validade mais próxima.
+Após a compra, atualiza-se o estoque do registro (com validade).
+
+"""
 def processo_checkout(conexao):
     total = Decimal("0.00")
     produtos = []
     contas = []
-    produtos_vendidos = []  # Lista de (id_produto_empresa, quantidade)
+    produtos_vendidos = []  # lista de tuplas (id_produto_empresa, quantidade, validade)
 
     try:
         with conexao.cursor() as cur:
@@ -261,6 +349,7 @@ def processo_checkout(conexao):
                 codigo = input("Digite ou escaneie o código (FIM para encerrar): ").strip()
                 if codigo.upper() == "FIM":
                     break
+                codigo = limpar_codigo(codigo)
 
                 if len(codigo) == 44 and codigo.startswith('86'):
                     dados = parse_codigo_febraban(codigo)
@@ -268,16 +357,22 @@ def processo_checkout(conexao):
                         print("Código FEBRABAN inválido.")
                         continue
 
-                    # Busca o produto
+                elif codigo.startswith("LOTE"):
+                    dados = parse_codigo_lote_customizado(codigo)
+                    if not dados:
+                        print("Código customizado de lote inválido.")
+                        continue
+
+                    # Busca o produto com o estoque que possui a mesma validade informada
                     cur.execute("""
-                        SELECT pe.id, pr.nome, pe.preco, e.quantidade
+                        SELECT pe.id, pr.nome, pe.preco, e.quantidade, e.validade
                         FROM produto_empresa pe
                         JOIN produtos pr ON pr.id = pe.id_produto
                         LEFT JOIN estoque e ON e.id_produto = pe.id
                         JOIN fornecedores f ON f.id = pe.id_empresa
-                        WHERE pe.id_produto = %s AND pe.id_segmento = %s AND f.cnpj LIKE %s
-                    """, (dados["id_produto"], dados["id_segmento"], dados["cnpj8"] + '%'))
-
+                        WHERE pe.id_produto = %s AND pe.id_segmento = %s AND f.cnpj LIKE %s AND e.validade = %s
+                        LIMIT 1
+                    """, (dados["id_produto"], dados["id_segmento"], dados["cnpj8"] + '%', dados["validade"]))
                     produto = cur.fetchone()
                     if not produto:
                         print("Produto FEBRABAN não encontrado.")
@@ -286,21 +381,19 @@ def processo_checkout(conexao):
                         print(f"Produto '{produto[1]}' sem estoque.")
                         continue
 
-                    # Insere item
                     cur.execute("""
                         INSERT INTO itens_transacionados (id_transacao, id_produto_empresa, quantidade, preco)
                         VALUES (%s, %s, %s, %s)
                     """, (trans_id, produto[0], dados["quantidade"], dados["valor"]))
-
                     contas.append((produto[1], dados["valor"]))
-                    produtos_vendidos.append((produto[0], dados["quantidade"]))
+                    produtos_vendidos.append((produto[0], dados["quantidade"], produto[4]))
                     total += dados["valor"]
                     print(f"[Produto FEBRABAN] {produto[1]} x{dados['quantidade']} | R$ {dados['valor']:.2f}")
                     continue
 
                 dados = parse_codigo_produto(codigo)
                 if dados:
-                    produto = buscar_produto(conexao, dados["id_produto"], dados["id_empresa"], dados["id_segmento"])
+                    produto = buscar_produto(conexao, dados["id_produto"], dados["id_empresa"], dados["id_segmento"], dados["validade"])
                     if not produto:
                         print("Produto não encontrado.")
                         continue
@@ -308,40 +401,35 @@ def processo_checkout(conexao):
                         print(f"Produto '{produto['nome']}' sem estoque.")
                         continue
 
-                    # Insere item vendido
                     cur.execute("""
                         INSERT INTO itens_transacionados (id_transacao, id_produto_empresa, quantidade, preco)
                         VALUES (%s, %s, 1, %s)
                     """, (trans_id, produto["id"], produto["preco"]))
-
                     produtos.append((produto["nome"], produto["preco"]))
-                    produtos_vendidos.append((produto["id"], 1))
+                    produtos_vendidos.append((produto["id"], 1, produto["validade"]))
                     total += produto["preco"]
                     print(f"[Produto] {produto['nome']} | R$ {produto['preco']:.2f}")
                 else:
                     print("Formato de código inválido.")
 
-            # só atualiza o estoque depois de encerrar a operação, para garantir atomicidade
-            for id_produto_empresa, quantidade in produtos_vendidos:
-                atualizar_estoque(cur, id_produto_empresa, quantidade, "checkout")
-
+            # Atualiza o estoque para cada item vendido, considerando a validade
+            for id_produto_empresa, quantidade, validade in produtos_vendidos:
+                atualizar_estoque(cur, id_produto_empresa, validade, quantidade, "checkout")
             conexao.commit()
     except Exception as e:
         print(f"Falha no checkout: {e}")
         conexao.rollback()
 
-    # Exibe resumo
     print("\n--- RESUMO DA COMPRA ---")
     tabela = PrettyTable()
-    tabela.field_names = ["Item", "Tipo", "Valor (R$)"]
-
+    tabela.field_names = ["Item", "Tipo", "Valor (R$)", "Validade"]
     for nome, valor in produtos:
-        tabela.add_row([nome, "Produto", f"{valor:.2f}"])
+        # Se não houver validade, exibe hífen
+        tabela.add_row([nome, "Produto", f"{valor:.2f}", "-"])
     for conta, valor in contas:
-        tabela.add_row([conta, "Conta FEBRABAN", f"{valor:.2f}"])
-
-    tabela.add_row(["TOTAL", "—", f"{total:.2f}"])
-    print(tabela)   
+        tabela.add_row([conta, "Conta FEBRABAN", f"{valor:.2f}", "-"])
+    tabela.add_row(["TOTAL", "—", f"{total:.2f}", "-"])
+    print(tabela)
 
 def extrair_valor_arrecadacao(codigo):
     digitos = re.sub(r'\D', '', codigo)
@@ -352,6 +440,11 @@ def extrair_valor_arrecadacao(codigo):
     except:
         return None
 
+"""
+
+Menu principal
+
+"""
 def menu(conexao):
     while True:
         print("\n======= SUPERMERCADO =======")
@@ -382,35 +475,71 @@ def menu(conexao):
         else:
             print("Opção inválida. Tente novamente.")
 
+"""
+
+Na listagem de produtos, agora também exibimos a validade registrada no estoque.
+Se houver mais de uma data para um mesmo produto, aqui é exibida a data do registro retornado (ordenado por validade).
+
+"""
 def listar_produtos(conexao):
     try:
         with conexao.cursor() as cur:
             cur.execute("""
-                select p.id, p.nome, pe.codigo, pe.preco, e.quantidade from produto_empresa pe
-                join produtos p on pe.id_produto = p.id
-                left join estoque e on e.id_produto = pe.id
-                order by pe.preco desc, e.quantidade desc
+                SELECT 
+                    p.id,
+                    p.nome,
+                    pe.codigo,
+                    pe.preco,
+                    COALESCE(e.quantidade, 0) AS quantidade,
+                    IF(e.validade IS NULL, 'Sem validade', DATE_FORMAT(e.validade, '%Y-%m-%d')) AS validade
+                FROM 
+                    produto_empresa pe
+                JOIN 
+                    produtos p ON pe.id_produto = p.id
+                LEFT JOIN 
+                    estoque e ON e.id_produto = pe.id
+                ORDER BY 
+                    pe.preco DESC,
+                    e.quantidade DESC;
             """)
             produtos = cur.fetchall()
 
             tabela = PrettyTable()
-            tabela.field_names = ["ID", "Nome", "Código", "Preço (R$)", "Estoque"]
+            tabela.field_names = ["ID", "Nome", "Código", "Preço (R$)", "Estoque", "Validade"]
 
             for prod in produtos:
-                tabela.add_row([prod[0], prod[1], prod[2], f"{prod[3]:.2f}", prod[4]])
-
+                validade = prod[5] if prod[5] is not None else "-"
+                tabela.add_row([prod[0], prod[1], prod[2], f"{prod[3]:.2f}", prod[4], validade])
             print(tabela)
-
     except Exception as e:
         print(f"Erro ao listar produtos: {e}")
 
+"""
+
+Função para criar produto.
+Valida o preço (deve ser numérico) e o CNPJ (exatamente 8 dígitos).
+
+"""
 def criar_produto(conexao):
     try:
         nome = input("Nome do produto: ").strip()
-        preco = Decimal(input("Preço do produto (ex: 5.99): ").strip())
+
+        preco_input = input("Preço do produto (ex: 5.99): ").strip()
+        try:
+            preco = Decimal(preco_input)
+        except:
+            print(f"Preço inválido: '{preco_input}'. Use ponto para decimais (ex: 9.99).")
+            return
+
         nome_segmento = input("Nome do segmento (ex: Alimentos): ").strip()
         nome_fornecedor = input("Nome do fornecedor: ").strip()
-        cnpj = input("CNPJ do fornecedor (somente números): ").strip()
+        cnpj = re.sub(r'\D', '', input("CNPJ do fornecedor (8 dígitos): ").strip())
+
+        if len(cnpj) >= 8:
+            cnpj = cnpj[:8]
+        else:
+            print(f"CNPJ inválido: '{cnpj}'. Use pelo menos 8 dígitos.")
+            return
 
         with conexao.cursor() as cur:
             # Segmento
@@ -437,7 +566,7 @@ def criar_produto(conexao):
                 print(f"Fornecedor '{nome_fornecedor}' criado.")
 
             # Produto
-            cur.execute("SELECT id FROM produtos WHERE upper(nome) = %s", (nome.upper(),))
+            cur.execute("SELECT id FROM produtos WHERE UPPER(nome) = %s", (nome.upper(),))
             if cur.fetchone():
                 print("Já existe produto com este nome.")
                 return
@@ -453,17 +582,14 @@ def criar_produto(conexao):
             """, (id_produto, id_fornecedor, id_segmento, preco, codigo))
             id_produto_empresa = cur.lastrowid
 
-            # Estoque
-            cur.execute("INSERT INTO estoque (id_produto, quantidade) VALUES (%s, 0)", (id_produto_empresa,))
             conexao.commit()
-
             print(f"Produto '{nome}' cadastrado com sucesso com código '{codigo}'.")
     except Exception as e:
         print(f"Erro ao criar produto: {e}")
         conexao.rollback()
 
 if __name__ == "__main__":
-    conexao = get_connection()
+    conexao = conectar()
     if conexao:
         try:
             menu(conexao)
