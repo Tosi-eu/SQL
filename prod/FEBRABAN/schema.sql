@@ -29,17 +29,12 @@ CREATE TABLE produto_empresa (
     FOREIGN KEY (id_segmento) REFERENCES segmentos(id)
 );
 
-CREATE TABLE estoque (
-    id_produto INT PRIMARY KEY,
-    quantidade INT NOT NULL DEFAULT 0,
-    FOREIGN KEY (id_produto) REFERENCES produto_empresa(id) ON DELETE CASCADE
-);
-
 CREATE TABLE lotes (
     id INT AUTO_INCREMENT PRIMARY KEY,
     codigo VARCHAR(44) NOT NULL UNIQUE,
     id_produto INT,
     quantidade INT NOT NULL,
+    validade DATE NOT NULL,
     recebido TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (id_produto) REFERENCES produto_empresa(id)
 );
@@ -91,11 +86,3 @@ INSERT INTO produto_empresa (id_produto, id_empresa, id_segmento, preco) VALUES
   (3, 3, 3, 4.29),
   (4, 4, 4, 7.75),
   (5, 5, 5, 5.20);
-
--- Estoque
-INSERT INTO estoque (id_produto, quantidade) VALUES
-  (1, 10),
-  (2, 15),
-  (3, 20),
-  (4, 5),
-  (5, 12);
