@@ -17,8 +17,7 @@ def conectar():
             host='localhost',
             user='root',
             password='root',
-            autocommit=True,
-            port=3307
+            autocommit=True
         )
 
         cursor_temporario = conexao_temporaria.cursor()
@@ -31,8 +30,7 @@ def conectar():
             host='localhost',
             user='root',
             password='root',
-            database='supermercado',
-            port=3307
+            database='supermercado'
         )
 
         print("Conectado ao banco 'supermercado'.")
