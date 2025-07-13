@@ -143,7 +143,11 @@ Posição	       Significado	      Valor
 """
 def parse_febraban_code(code):
     digits = re.sub(r'\D', '', code)
-    if len(digits) != 44 or not digits.startswith('86'):
+    if len(digits) == 48 and digits.startswith('86'):
+        digits = digits[:11] + digits[12:23] + digits[24:35] + digits[36:47]
+    elif len(digits) == 44 and digits.startswith('86'):
+        pass  
+    else:
         error("Código inválido (esperado padrão FEBRABAN de 44 dígitos iniciando com 86).")
         return None
     try:
