@@ -1,5 +1,4 @@
 -- Criação de tabelas
-
 CREATE TABLE segmentos (
     id INT AUTO_INCREMENT PRIMARY KEY,
     nome VARCHAR(255) NOT NULL UNIQUE
@@ -23,7 +22,7 @@ CREATE TABLE produto_empresa (
     id_empresa INT NOT NULL,
     id_segmento INT NOT NULL,
     preco DECIMAL(10, 2) NOT NULL,
-    UNIQUE (id_produto, id_empresa),
+    UNIQUE (id_produt o, id_empresa),
     FOREIGN KEY (id_produto) REFERENCES produtos(id) ON DELETE CASCADE,
     FOREIGN KEY (id_empresa) REFERENCES fornecedores(id) ON DELETE CASCADE,
     FOREIGN KEY (id_segmento) REFERENCES segmentos(id)
@@ -41,7 +40,7 @@ CREATE TABLE lotes (
 
 CREATE TABLE transacoes (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    tipo_transacao ENUM('checkout', 'entry') NOT NULL,
+    tipo_transacao ENUM('checkout_produtos', 'recebimento_lote') NOT NULL,
     data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -51,7 +50,6 @@ CREATE TABLE itens_transacionados (
     id_produto_empresa INT NOT NULL,
     quantidade INT NOT NULL,
     preco DECIMAL(10, 2) NOT NULL,
-    FOREIGN KEY (id_transacao) REFERENCES transacoes(id) ON DELETE CASCADE,
     FOREIGN KEY (id_produto_empresa) REFERENCES produto_empresa(id) ON DELETE CASCADE
 );
 
