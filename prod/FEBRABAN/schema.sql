@@ -17,7 +17,7 @@ CREATE TABLE products (
 
 CREATE TABLE product_supplier (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    code VARCHAR(13) NOT NULL UNIQUE,
+    code VARCHAR(24) NOT NULL UNIQUE,
     product_id INT,
     supplier_id INT,
     segment_id INT,
@@ -102,11 +102,11 @@ INSERT INTO products (name) VALUES
   ('Pilsner Beer 600ml');
 
 INSERT INTO product_supplier (code, product_id, supplier_id, segment_id, price) VALUES
-  ('PROD001001001', 1, 1, 1, 9.90),
-  ('PROD002002002', 2, 2, 2, 18.50),
-  ('PROD003003003', 3, 3, 3, 4.29),
-  ('PROD004004004', 4, 4, 4, 7.75),
-  ('PROD005005005', 5, 5, 5, 5.20);
+  ('PRODUCT00100100120251230', 1, 1, 1, 9.90),
+  ('PRODUCT00200200220251229', 2, 2, 2, 18.50),
+  ('PRODUCT00300300320251228', 3, 3, 3, 4.29),
+  ('PRODUCT00400400420251227', 4, 4, 4, 7.75),
+  ('PRODUCT00500500520251226', 5, 5, 5, 5.20);
 
 INSERT INTO stock_batches (product_id, quantity, validity) VALUES
   (1, 10, '2025-12-31'),

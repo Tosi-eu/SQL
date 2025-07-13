@@ -1,8 +1,8 @@
+from collections import defaultdict
 import json
 import os
 import re
-import mysql.connector
-from mysql.connector import errorcode
+import pymysql
 from decimal import Decimal
 import datetime
 from colorama import init, Fore, Style
@@ -23,53 +23,56 @@ Conecta no banco criado, cria a tabela e popula algumas com dados.
 """
 def get_connection():
     try:
-        temp_conn = mysql.connector.connect(
-            user='root', #seu usuario
-            password='root', #sua usuario
-            host='localhost' #nao mexe
+        temp_conn = pymysql.connect(
+            user='root',
+            password='root',
+            host='localhost',
+            autocommit=True
         )
-        temp_conn.autocommit = True
-        temp_cursor = temp_conn.cursor()
-
-        temp_cursor.execute("CREATE DATABASE IF NOT EXISTS market")
-        success("Banco de dados 'market' verificado/criado.")
-        temp_cursor.close()
+        with temp_conn.cursor() as temp_cursor:
+            temp_cursor.execute("CREATE DATABASE IF NOT EXISTS market")
+            success("Banco de dados 'market' verificado/criado.")
         temp_conn.close()
 
-        conn = mysql.connector.connect(
-            user='root', #seu usuario
-            password='root', # sua senha
-            host='localhost', # mao mexe
-            database='market' # nao mexe
+        conn = pymysql.connect(
+            user='root',
+            password='root',
+            host='localhost',
+            database='market',
+            autocommit=False
         )
         info("Conectado ao banco 'market'.")
 
-        cur = conn.cursor()
-        cur.execute("""
-            SELECT COUNT(*) FROM information_schema.tables 
-            WHERE table_schema = 'market' AND table_name = 'products'
-        """)
-        if cur.fetchone()[0] == 0:
-            schema_path = os.path.join(os.getcwd(), "schema.sql")
-            with open(schema_path, "r", encoding="utf-8") as f:
-                cur.execute("SET FOREIGN_KEY_CHECKS = 0;")  
-                for statement in f.read().split(";"):
-                    if statement.strip():
-                        cur.execute(statement)
-            conn.commit()
-            success("Schema criado com sucesso.")
-        else:
-            info("Schema já existe.")
-        cur.close()
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT COUNT(*) FROM information_schema.tables 
+                WHERE table_schema = 'market' AND table_name = 'products'
+            """)
+            if cur.fetchone()[0] == 0:
+                schema_path = os.path.join(os.getcwd(), "schema.sql")
+                with open(schema_path, "r", encoding="utf-8") as f:
+                    statements = f.read().split(";")
+                    for statement in statements:
+                        if statement.strip():
+                            cur.execute(statement)
+                conn.commit()
+                success("Schema criado com sucesso.")
+            else:
+                info("Schema já existe.")
         return conn
 
-    except mysql.connector.Error as err:
-        if err.errno == errorcode.ER_ACCESS_DENIED_ERROR:
-            error("Usuário ou senha inválidos.")
-        elif err.errno == errorcode.ER_BAD_DB_ERROR:
-            error("Banco de dados inexistente.")
+    except pymysql.err.OperationalError as err:
+        code, msg = err.args
+        if code == 1045:
+            error(f"Usuário ou senha inválidos: {msg}")
+        elif code == 1049:
+            error(f"Banco de dados inexistente: {msg}")
         else:
-            error(err)
+            error(f"Erro operacional: {msg}")
+        return None
+
+    except Exception as e:
+        error(f"Erro inesperado: {e}")
         return None
 """
 
@@ -86,6 +89,27 @@ def convert_for_json(obj):
 
 """
 
+Interpreta um código de produto no formato: PROD<product_id><company_id><segment_id><validity>
+Exemplo: PRODUCT00100200320251230
+
+"""
+def parse_product_code(codigo):
+    match = re.fullmatch(r'PRODUCT(\d{3})(\d{3})(\d{3})(\d{8})', codigo)
+    if not match:
+        return None
+    try:
+        return {
+            "product_id": int(match.group(1)),
+            "company_id": int(match.group(2)),
+            "segment_id": int(match.group(3)),
+            "validity": datetime.datetime.strptime(match.group(4), "%Y%m%d").date()
+        }
+    except Exception as e:
+        print(f"Erro ao interpretar código PROD: {e}")
+        return None
+
+"""
+
 a cada operação no banco, de qualquer natureza, em qualquer tabela, essa tabela é populada com:
 
 - que tabela foi alterada
@@ -99,9 +123,22 @@ def make_audit(cur, table, operation, data):
         INSERT INTO audit_log (table_name, operation, changed_data)
         VALUES (%s, %s, %s)
     """, (table, operation, json.dumps(json_data)))
-"""
 
-verifica se o código é febraban e se for, extrai cada parte de dentro dele
+"""
+pega um código de barras FEBRABAN  e extrai as partes, no formato
+
+Posição	       Significado	      Valor
+01	            Produto	            8
+02	            Segmento	        6
+03	            Tipo de valor	    8
+04	            Dígito Verificador  6
+05 a 15	        Valor (R$6,99)	    00000000990
+16 a 23	        CNPJ Nestlé         11111111
+24 a 31	        Data validity       20251230
+32 a 33	        Segmento	        01
+34 a 36	        Produto ID 	        001
+37 a 39	        ID Fornecedor	    001
+39 a 44	        Quantidade	        00010
 
 """
 def parse_febraban_code(code):
@@ -117,7 +154,7 @@ def parse_febraban_code(code):
             "segment_id": int(digits[31:33]),
             "product_id": int(digits[33:36]),
             "company_id": int(digits[36:39]),
-            "amount": int(digits[39:44])
+            "quantity": int(digits[39:44])
         }
     except Exception as e:
         error(f"Erro ao interpretar FEBRABAN: {e}")
@@ -138,7 +175,7 @@ def parse_custom_lot_code(code):
             "company_id": int(match.group(2)),
             "segment_id": int(match.group(3)),
             "validity": datetime.datetime.strptime(match.group(4), "%Y%m%d").date(),
-            "amount": int(match.group(5)),
+            "quantity": int(match.group(5)),
             "price": Decimal(match.group(6)) / 100,
             "cnpj8": match.group(7)
         }
@@ -147,10 +184,10 @@ def parse_custom_lot_code(code):
         return None
 """
 
-A cada interação com recebimento de lote ou saida de produto, é necessário atualizar estoque
+A cada interação com recebimento de lote ou saida de product, é necessário atualizar estoque
 
-- se for recebimento de lote, atualiza o estoque do produto com a quantidade N que está no código do lote
-- se for checkout, atualiza o estoque decrementando em 1 o estoque do produto
+- se for recebimento de lote, atualiza o estoque do product com a quantidade N que está no código do lote
+- se for checkout, atualiza o estoque decrementando em 1 o estoque do product
 
 """
 def update_stock(cur, product_supplier_id, quantity, transaction_type, validity):
@@ -167,29 +204,33 @@ def update_stock(cur, product_supplier_id, quantity, transaction_type, validity)
             WHERE product_id = %s AND validity = %s
         """, (quantity, product_supplier_id, validity))
 
-"""
-pega um código de barras FEBRABAN  e extrai as partes, no formato
 
-Posição	       Significado	      Valor
-01	            Produto	            8
-02	            Segmento	        6
-03	            Tipo de valor	    8
-04	            Dígito Verificador  6
-05 a 15	        Valor (R$6,99)	    00000000990
-16 a 23	        CNPJ Nestlé         11111111
-24 a 31	        Data validade       20251230
-32 a 33	        Segmento	        01
-34 a 36	        Produto ID 	        001
-37 a 39	        ID Fornecedor	    001
-39 a 44	        Quantidade	        00010
+"""
+
+Limpa qualquer código de entrada, removendo espaços, pontos, traços,
+barras e outros caracteres não alfanuméricos.
+Retorna apenas os caracteres relevantes do código.
+
+"""
+def normalize_code(raw_code):
+    return re.sub(r'\W+', '', raw_code).upper()
+
+"""
+
+Recebe um código customizado de lote, faz verificações de dados inclusos nele e, se estiver tudo correto, insere no banco
 
 """
 def fill_stock(conn):
-    code = input_info("Digite o código do lote (FEBRABAN ou customizado): ").strip()
-    data = parse_custom_lot_code(code) if code.startswith("RECEIVE") else parse_febraban_code(code)
+    code = normalize_code(input_info("Digite o código do lote (apenas código customizado): ").strip())
+
+    if not code.startswith("RECEIVE"):
+        error("Apenas códigos customizados são aceitos.")
+        return
+
+    data = parse_custom_lot_code(code)
 
     if not data or data["validity"] < datetime.date.today():
-        error("Lote vencido.")
+        error("Lote inválido ou vencido.")
         return
 
     try:
@@ -208,46 +249,72 @@ def fill_stock(conn):
             if cur.fetchone():
                 error("Este lote já foi registrado.")
                 return
-            
+
             cur.execute("SELECT id FROM suppliers WHERE id = %s", (data["company_id"],))
             if not cur.fetchone():
                 error("Fornecedor não existe!")
                 return
-                
-            cur.execute("""
-                SELECT id FROM product_supplier
-                WHERE product_id = %s AND supplier_id = %s AND segment_id = %s
-            """, (data["product_id"], data["company_id"], data["segment_id"]))
+            
+            cur.execute("SELECT cnpj FROM suppliers WHERE id = %s", (data["company_id"],))
             row = cur.fetchone()
-            if row:
-                ps_id = row[0]
+            if not row:
+                error("Fornecedor não encontrado.")
+                return
 
-            cur.execute("INSERT INTO lots (code, product_id, quantity) VALUES (%s, %s, %s)",
-                        (code, data["product_id"], data["amount"]))
+            cnpj_banco = re.sub(r'\D', '', row[0]) 
+            cnpj_codigo = re.sub(r'\D', '', data["cnpj8"])
+
+            if not cnpj_codigo or not cnpj_banco.startswith(cnpj_codigo[:8]):
+                error("CNPJ do código não bate com o CNPJ da empresa fornecedora.")
+                return
+
+            validity = data["validity"].strftime("%Y%m%d")
+            custom_code = f"PRODUCT{data['product_id']:03d}{data['company_id']:03d}{data['segment_id']:03d}{validity}"
+
+            cur.execute("""
+                INSERT INTO product_supplier (code, product_id, supplier_id, segment_id, price)
+                VALUES (%s, %s, %s, %s, %s)
+            """, (custom_code, data["product_id"], data["company_id"], data["segment_id"], data["price"]))
+            ps_id = cur.lastrowid
+            make_audit(cur, "product_supplier", "INSERT", {
+                "code": custom_code,
+                "product_id": data["product_id"],
+                "supplier_id": data["company_id"],
+                "segment_id": data["segment_id"],
+                "price": data["price"]
+            })
+
+            cur.execute("""
+                INSERT INTO lots (code, product_id, quantity)
+                VALUES (%s, %s, %s)
+            """, (code, ps_id, data["quantity"]))
             make_audit(cur, "lots", "INSERT", data)
 
             cur.execute("INSERT INTO transactions (transaction_type) VALUES ('entry')")
             trans_id = cur.lastrowid
+
             cur.execute("""
                 INSERT INTO transaction_items (transaction_id, product_id, quantity, price)
                 VALUES (%s, %s, %s, %s)
-            """, (trans_id, data["product_id"], data["amount"], data["price"]))
+            """, (trans_id, ps_id, data["quantity"], data["price"]))
             make_audit(cur, "transaction_items", "INSERT", data)
 
-            update_stock(cur, ps_id, data["amount"], "entry", data["validity"])
+            update_stock(cur, ps_id, data["quantity"], "entry", data["validity"])
+
             conn.commit()
-            success(f"{data['amount']} unidades adicionadas ao estoque do produto {data['product_id']}")
+            success(f"{data['quantity']} unidades adicionadas ao estoque do produto {data['product_id']} com código '{custom_code}'.")
+
     except Exception as e:
         error(f"Erro ao adicionar estoque: {e}")
         conn.rollback()
 
 """
 
-recebe o código do produto e faz uma busca completa para obter
+recebe o código do product e faz uma busca completa para obter
 
-- nome do produto
-- preço do produto
-- estoque do produto
+- nome do product
+- preço do product
+- estoque do product
 
 """
 def fetch_product(cur, product_supplier_id):
@@ -266,9 +333,9 @@ def fetch_product(cur, product_supplier_id):
     
 def make_checkout(conn):
     total = Decimal("0.00")
-    itens = []
-    vendidos = []
-    contas_febraban = set() 
+    itens_in_cart = []  # (nome, preco, quantidade, origem)
+    sold_products = []  # (product_id, qtd, validity)
+    febraban_accounts = set()
 
     try:
         with conn.cursor() as cur:
@@ -276,14 +343,16 @@ def make_checkout(conn):
             trans_id = cur.lastrowid
 
             while True:
-                code = input_info("Escaneie o produto ou lote (ou 'FIM'): ").strip()
+                code = normalize_code(input_info("Escaneie o product ou lote (ou 'FIM'): ").strip())
                 if code.upper() == "FIM":
                     break
 
                 data = None
                 product_supplier_id = None
+                origin_tag = "[UNKNOWN]"
 
                 if code.startswith("RECEIVE"):
+                    origin_tag = "[LOTE]"
                     data = parse_custom_lot_code(code)
                     if data:
                         cur.execute("""
@@ -291,10 +360,12 @@ def make_checkout(conn):
                             WHERE product_id = %s AND supplier_id = %s AND segment_id = %s
                         """, (data["product_id"], data["company_id"], data["segment_id"]))
                         row = cur.fetchone()
-                        product_supplier_id = row[0]
+                        if row:
+                            product_supplier_id = row[0]
 
                 elif code.startswith("86") and len(code) == 44:
-                    contas_febraban.add(code) 
+                    origin_tag = "[FEBRABAN]"
+                    febraban_accounts.add(code)
                     data = parse_febraban_code(code)
                     if data:
                         cur.execute("""
@@ -304,15 +375,19 @@ def make_checkout(conn):
                             WHERE ps.product_id = %s AND ps.segment_id = %s AND s.cnpj LIKE %s
                         """, (data["product_id"], data["segment_id"], data["cnpj8"] + '%'))
                         row = cur.fetchone()
-                        print(row)
-                        product_supplier_id = row[0]
+                        if row:
+                            product_supplier_id = row[0]
 
-                elif code.startswith("PROD"):
+                elif code.startswith("PRODUCT"):
+                    origin_tag = "[PROD]"
+                    custom_product_code = parse_product_code(code)
+                    if not custom_product_code:
+                        error("Código de produto não encontrado")
+                        continue
                     cur.execute("SELECT id FROM product_supplier WHERE code = %s", (code,))
                     row = cur.fetchone()
-                    print('row',row)
-                    product_supplier_id = row[0]
-                    print(product_supplier_id)
+                    if row:
+                        product_supplier_id = row[0]
 
                 else:
                     error("Código inválido.")
@@ -322,24 +397,39 @@ def make_checkout(conn):
                     error("Produto não encontrado.")
                     continue
 
-                produto = fetch_product(cur, product_supplier_id)
-                if not produto or produto["stock"] <= 0:
-                    error(f"Produto sem estoque ou inválido.")
+                product = fetch_product(cur, product_supplier_id)
+                if not product or product["stock"] <= 0:
+                    error("Produto sem estoque ou inválido.")
+                    continue
+
+                quantity = data["quantity"] if data and "quantity" in data else 1
+
+                if quantity > product["stock"]:
+                    error(f"Quantidade solicitada ({quantity}) maior que o estoque disponível ({product['stock']}).")
                     continue
 
                 cur.execute("""
                     INSERT INTO transaction_items (transaction_id, product_id, quantity, price)
-                    VALUES (%s, %s, 1, %s)
-                """, (trans_id, produto["id"], produto["price"]))
-                total += produto["price"]
-                print(10)
-                print(produto)
-                itens.append((produto["name"], produto["price"]))
-                vendidos.append((produto["id"], 1, produto["validity"]))
-                success(f"[Produto] {produto['name']} | R$ {produto['price']:.2f}")
+                    VALUES (%s, %s, %s, %s)
+                """, (trans_id, product["id"], quantity, product["price"]))
+                total += product["price"] * quantity
+                itens_in_cart.append((product["name"], product["price"], quantity, origin_tag))
+                sold_products.append((product["id"], quantity, product["validity"]))
 
-            for prod_id, qtd, validade in vendidos:
-                update_stock(cur, prod_id, qtd, "checkout", validade)
+                success(f"{origin_tag} {product['name']} | QTD: {quantity} | UNIT: R$ {product['price']:.2f} | TOTAL: R$ {(product['price'] * quantity):.2f}")
+
+            for prod_id, qtd, validity in sold_products:
+                cur.execute("""
+                    SELECT quantity FROM stock_batches
+                    WHERE product_id = %s AND validity = %s
+                """, (prod_id, validity))
+                row = cur.fetchone()
+                available = row[0] if row else 0
+                if available - qtd < 0:
+                    error(f"Estoque insuficiente . Atualização abortada.")
+                    conn.rollback()
+                    return
+                update_stock(cur, prod_id, qtd, "checkout", validity)
 
             conn.commit()
 
@@ -347,24 +437,24 @@ def make_checkout(conn):
         error(f"Erro no checkout: {e}")
         conn.rollback()
 
-    if contas_febraban:
+    if febraban_accounts:
         print(Fore.CYAN + "\nCONTAS FEBRABAN UTILIZADAS\n")
-        for conta in sorted(contas_febraban):
+        for conta in sorted(febraban_accounts):
             print(f"→ {conta}")
 
     print(Fore.GREEN + "\nRESUMO DA COMPRA\n")
-    for nome, _ in itens:
-        print(f"→ {nome}")
+    for name, price, qty, origin in itens_in_cart:
+        print(f"{origin} {name} | QTD: {qty} | UNIT: R$ {price:.2f} | TOTAL: R$ {(price * qty):.2f}")
     print(Fore.GREEN + f"\nTOTAL A PAGAR: R$ {total:.2f}")
 
 """
 
-seleciona todos os produtos e os lista em forma de tabela, trazendo informações de produto
+seleciona todos os produtos e os lista em forma de tabela, trazendo informações de product
 - nome
 - codigo
 - preco
 - estoque (caso houver) senão 0 (quando o poduto não recebeu lote)
-- validade (caso houver), senão 'Sem validade' (quando o poduto não recebeu lote)
+- validity (caso houver), senão 'Sem validity' (quando o poduto não recebeu lote)
 
 """
 def list_products(conn):
@@ -375,13 +465,12 @@ def list_products(conn):
                     p.name AS nome,
                     pe.code AS codigo_produto,
                     pe.price AS preço,
-                    COALESCE(MIN(s.validity), 'Sem validade') AS validade,
-                    SUM(COALESCE(s.quantity, 0)) AS estoque
+                    COALESCE(s.validity, 'Sem validity') AS validity,
+                    COALESCE(s.quantity, 0) AS estoque
                 FROM product_supplier pe
                 JOIN products p ON pe.product_id = p.id
                 LEFT JOIN stock_batches s ON s.product_id = pe.id
-                GROUP BY p.name, pe.code, pe.price
-                ORDER BY validade ASC;
+                ORDER BY s.quantity, s.validity desc;
             """)
             cols = [d[0] for d in cur.description]
             df = pd.DataFrame(cur.fetchall(), columns=cols)
@@ -396,40 +485,36 @@ Cria um novo produto no banco
 - verifica se já existe produto com tal nome, se exisitr, cancela
 - verifica se o segmento já existe, se não, cria
 - verifica se o cnpj da empresa existe, se não, insere na tabela
-- cria um estoque zerado do produto
 - cria um código do produto, que pode ser usado no checkout
-
 
 """
 def create_product(conn):
     try:
         name = input_info("Nome do Produto: ").strip()
-        price = Decimal(input_info("Preço do Produto (ex: 4.99): ").strip())
         segment_name = input_info("Nome do Segmento: ").strip()
         supplier_name = input_info("Nome do Fornecedor: ").strip()
-        cnpj = input_info("CNPJ do Fornecedor: ").strip()
+        cnpj_input = input_info("CNPJ do Fornecedor (apenas números ou formatado): ").strip()
+
+        cnpj = re.sub(r'\D', '', cnpj_input)
+
+        if len(cnpj) < 8 or not cnpj.isdigit():
+            error("CNPJ inválido: deve conter pelo menos 8 dígitos numéricos.")
+            return
+
+        cnpj8 = cnpj[:8]
 
         with conn.cursor() as cur:
-            # Segment
             cur.execute("SELECT id FROM segments WHERE name = %s", (segment_name,))
             row = cur.fetchone()
-            if row:
-                segment_id = row[0]
-            else:
+            if not row:
                 cur.execute("INSERT INTO segments (name) VALUES (%s)", (segment_name,))
-                segment_id = cur.lastrowid
                 make_audit(cur, "segments", "INSERT", {"name": segment_name})
 
-            # Supplier
-            cur.execute("SELECT id FROM suppliers WHERE cnpj = %s", (cnpj,))
+            cur.execute("SELECT id FROM suppliers WHERE cnpj = %s", (cnpj8,))
             row = cur.fetchone()
-            if row:
-                supplier_id = row[0]
-            else:
-                cur.execute("INSERT INTO suppliers (name, cnpj) VALUES (%s, %s)",
-                            (supplier_name, cnpj))
-                supplier_id = cur.lastrowid
-                make_audit(cur, "suppliers", "INSERT", {"name": supplier_name, "cnpj": cnpj})
+            if not row:
+                cur.execute("INSERT INTO suppliers (name, cnpj) VALUES (%s, %s)", (supplier_name, cnpj8))
+                make_audit(cur, "suppliers", "INSERT", {"name": supplier_name, "cnpj": cnpj8})
 
             cur.execute("SELECT id FROM products WHERE LOWER(name) = LOWER(%s)", (name,))
             if cur.fetchone():
@@ -437,19 +522,10 @@ def create_product(conn):
                 return
 
             cur.execute("INSERT INTO products (name) VALUES (%s)", (name,))
-            product_id = cur.lastrowid
             make_audit(cur, "products", "INSERT", {"name": name})
 
-            # Product-Supplier
-            code = f"PROD{product_id:03d}{supplier_id:03d}{segment_id:03d}"
-            cur.execute("""
-                INSERT INTO product_supplier (product_id, supplier_id, segment_id, price, code)
-                VALUES (%s, %s, %s, %s, %s)
-            """, (product_id, supplier_id, segment_id, price, code))
-            make_audit(cur, "product_supplier", "INSERT", {"product_id": product_id, "supplier_id": supplier_id})
-
             conn.commit()
-            success(f"Produto '{name}' criado com o código '{code}'.")
+            success(f"Produto '{name}' criado com fornecedor '{supplier_name}' (CNPJ: {cnpj8}).")
 
     except Exception as e:
         error(f"Erro criado produto: {e}")
