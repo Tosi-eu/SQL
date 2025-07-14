@@ -170,7 +170,6 @@ def adicionar_estoque(conexao):
         return
 
     dados = parse_codigo_lote_customizado(codigo)
-
     if not dados:
         print("Código inválido.")
         return
@@ -181,72 +180,68 @@ def adicionar_estoque(conexao):
 
     try:
         with conexao.cursor() as cur:
-
             cur.execute("SELECT id FROM lotes WHERE codigo = %s", (codigo,))
             if cur.fetchone():
                 print("Este lote já foi registrado anteriormente.")
                 return
-        
-            # Valida existência de segmento
+
             cur.execute("SELECT id FROM segmentos WHERE id = %s", (dados["id_segmento"],))
             if not cur.fetchone():
                 print("Segmento inexistente!")
                 return
 
-            # Valida existência de fornecedor (baseado no CNPJ)
             cur.execute("SELECT id FROM fornecedores WHERE cnpj LIKE %s", (dados["cnpj8"] + '%',))
-            if cur.fetchone():
+            fornecedor = cur.fetchone()
+            if fornecedor:
                 id_empresa = dados["id_empresa"]
             else:
                 print("Empresa inexistente.")
                 return
+            
+            cur.execute("""
+                SELECT id FROM fornecedores 
+                WHERE id = %s AND cnpj LIKE %s
+            """, (dados["id_empresa"], dados["cnpj8"] + '%'))
+            fornecedor = cur.fetchone()
+            if not fornecedor:
+                print("Empresa inexistente ou CNPJ não corresponde à empresa informada.")
+                return
 
-            # Valida existência de produto
+
             cur.execute("SELECT id FROM produtos WHERE id = %s", (dados["id_produto"],))
             if not cur.fetchone():
                 print("Produto inexistente.")
                 return
 
-            codigo_prod = f"PROD{dados['id_produto']:03d}{id_empresa:03d}{dados['id_segmento']:03d}"
             cur.execute("""
-                SELECT id, codigo FROM produto_empresa
+                SELECT id, codigo, preco FROM produto_empresa
                 WHERE id_produto = %s AND id_empresa = %s AND id_segmento = %s
             """, (dados["id_produto"], id_empresa, dados["id_segmento"]))
             result = cur.fetchone()
 
-            if result:
-                id_produto_empresa, codigo_existente = result
-                if not codigo_existente:
-                    cur.execute("""
-                        UPDATE produto_empresa SET codigo = %s
-                        WHERE id = %s
-                    """, (codigo_prod, id_produto_empresa))
-            else:
-                cur.execute("""
-                    INSERT INTO produto_empresa (id_produto, id_empresa, id_segmento, preco, codigo)
-                    VALUES (%s, %s, %s, %s, %s)
-                """, (dados["id_produto"], id_empresa, dados["id_segmento"], dados["valor"], codigo_prod))
-                id_produto_empresa = cur.lastrowid
-
-            # Verifica se o lote já foi registrado
-            cur.execute("SELECT id FROM lotes WHERE codigo = %s", (codigo,))
-            if cur.fetchone():
-                print("Este lote já foi registrado anteriormente.")
+            if not result:
+                print("Produto não cadastrado para esta empresa!")
+                return
+            
+            if dados["valor"] != result[2]:
+                print(f"Erro: preço informado ({dados['valor']}) não bate com o preço registrado ({result[2]}).")
                 return
 
-            # Insere o lote com a validade informada
+            id_produto_empresa = result[0]
+
             cur.execute("""
                 INSERT INTO lotes (codigo, id_produto, quantidade, validade)
                 VALUES (%s, %s, %s, %s)
             """, (codigo, id_produto_empresa, dados["quantidade"], dados["validade"]))
-            cur.execute("INSERT INTO transacoes (tipo_transacao) VALUES ('recebimento_lote')")
-            trans_id = cur.lastrowid
+
             cur.execute("""
-                INSERT INTO itens_transacionados (id_transacao, id_produto_empresa, quantidade, preco)
-                VALUES (%s, %s, %s, %s)
-            """, (trans_id, id_produto_empresa, dados["quantidade"], dados["valor"]))
+                INSERT INTO transacoes (tipo_transacao, id_produto_empresa, quantidade, preco)
+                VALUES ('recebimento_lote', %s, %s, %s)
+            """, (id_produto_empresa, dados["quantidade"], dados["valor"]))
+
             conexao.commit()
-            print(f"{dados['quantidade']} unidades do produto {dados['id_produto']} com validade {dados['validade']} adicionadas ao estoque.")
+            print(f"Lote registrado com sucesso: {dados['quantidade']} unidades do produto {dados['id_produto']} com validade {dados['validade']}.")
+
     except Exception as e:
         print(f"Erro ao processar lote: {e}")
         conexao.rollback()
@@ -300,8 +295,6 @@ def processo_checkout(conexao):
 
     try:
         with conexao.cursor() as cur:
-            cur.execute("INSERT INTO transacoes (tipo_transacao) VALUES ('checkout_produtos')")
-            trans_id = cur.lastrowid
 
             while True:
                 codigo = input("Digite ou escaneie o código (FIM para encerrar): ").strip()
@@ -310,44 +303,46 @@ def processo_checkout(conexao):
 
                 codigo = limpar_codigo(codigo)
 
+                # --- Código FEBRABAN ---
                 if len(codigo) == 44 and codigo.startswith('86'):
                     dados = parse_codigo_febraban(codigo)
                     if not dados:
                         print("Código FEBRABAN inválido.")
                         continue
 
-                    cur.execute("SELECT COUNT(*) FROM lotes WHERE codigo = %s", (codigo,))
-                    if cur.fetchone()[0] == 0:
-                        print("Este código FEBRABAN não está registrado em nenhum lote.")
-                        continue
+                    print(dados["validade"])
 
+                    # Busca produto_empresa e lote correspondente
                     cur.execute("""
                         SELECT pe.id, pr.nome, pe.preco, l.quantidade, l.validade
                         FROM produto_empresa pe
                         JOIN produtos pr ON pr.id = pe.id_produto
                         JOIN lotes l ON l.id_produto = pe.id AND l.validade = %s
                         JOIN fornecedores f ON f.id = pe.id_empresa
-                    """, (dados["validade"],))
+                        WHERE f.cnpj = %s
+                    """, (dados["validade"], dados["cnpj8"]))
                     produto = cur.fetchone()
 
                     if not produto:
                         print("Produto FEBRABAN não encontrado.")
                         continue
-                    
+
                     if produto[3] <= 0:
                         print(f"Produto '{produto[1]}' sem estoque.")
                         continue
                     elif produto[3] < dados["quantidade"]:
-                        print(f"Produto '{produto[1]}' sem estoque para esta operação. [Em estoque: {produto[3]} unidades]")
+                        print(f"Produto '{produto[1]}' sem estoque suficiente para esta operação. [Em estoque: {produto[3]} unidades]")
                         continue
 
+                    # Insere direto na transacoes
                     cur.execute("""
-                        INSERT INTO itens_transacionados (id_transacao, id_produto_empresa, quantidade, preco)
-                        VALUES (%s, %s, %s, %s)
-                    """, (trans_id, produto[0], dados["quantidade"], dados["valor"]))
+                        INSERT INTO transacoes (tipo_transacao, id_produto_empresa, quantidade, preco)
+                        VALUES ('checkout_produtos', %s, %s, %s)
+                    """, (produto[0], dados["quantidade"], dados["valor"]))
+
                     produtos_vendidos.append((produto[0], dados["quantidade"], produto[4]))
 
-                    chave = (produto[1], "Conta FEBRABAN", dados["validade"])
+                    chave = (produto[1], "Conta FEBRABAN", produto[4])
                     if chave in resumo_compras:
                         resumo_compras[chave][2] += 1
                     else:
@@ -356,15 +351,15 @@ def processo_checkout(conexao):
                     total += dados["valor"]
                     print(f"[FEBRABAN] {produto[1]} x{dados['quantidade']} | R$ {dados['valor']:.2f}")
 
-                # === 2. CÓDIGO LOTE ===
+                # --- Código LOTE ---
                 elif codigo.startswith("LOTE"):
                     dados = parse_codigo_lote_customizado(codigo)
                     if not dados:
                         print("Código customizado de lote inválido.")
                         continue
 
-                    cur.execute("SELECT COUNT(*) FROM lotes WHERE codigo = %s", (codigo,))
-                    if cur.fetchone()[0] == 0:
+                    cur.execute("SELECT id FROM lotes WHERE codigo = %s", (codigo,))
+                    if not cur.fetchone():
                         print("Este código não está registrado em nenhum lote.")
                         continue
 
@@ -374,7 +369,9 @@ def processo_checkout(conexao):
                         JOIN produtos pr ON pr.id = pe.id_produto
                         JOIN lotes l ON l.id_produto = pe.id AND l.validade = %s
                         JOIN fornecedores f ON f.id = pe.id_empresa
-                    """, (dados["validade"],))
+                        WHERE l.codigo = %s
+                        LIMIT 1
+                    """, (dados["validade"], codigo))
                     produto = cur.fetchone()
 
                     if not produto:
@@ -385,25 +382,27 @@ def processo_checkout(conexao):
                         print(f"Produto '{produto[1]}' sem estoque.")
                         continue
                     elif produto[3] < dados["quantidade"]:
-                        print(f"Produto '{produto[1]}' sem estoque para esta operação. [Em estoque: {produto[3]} unidades]")
+                        print(f"Produto '{produto[1]}' sem estoque suficiente para esta operação. [Em estoque: {produto[3]} unidades]")
                         continue
 
                     preco_total = produto[2] * dados["quantidade"]
                     cur.execute("""
-                        INSERT INTO itens_transacionados (id_transacao, id_produto_empresa, quantidade, preco)
-                        VALUES (%s, %s, %s, %s)
-                    """, (trans_id, produto[0], dados["quantidade"], preco_total))
+                        INSERT INTO transacoes (tipo_transacao, id_produto_empresa, quantidade, preco)
+                        VALUES ('checkout_produtos', %s, %s, %s)
+                    """, (produto[0], dados["quantidade"], preco_total))
+
                     produtos_vendidos.append((produto[0], dados["quantidade"], produto[4]))
 
-                    chave = (produto[1], "Lote", dados["validade"])
+                    chave = (produto[1], "Lote", produto[4])
                     if chave in resumo_compras:
                         resumo_compras[chave][2] += 1
                     else:
                         resumo_compras[chave] = [produto[2], dados["quantidade"], 1]
+
                     total += preco_total
                     print(f"[LOTE] {produto[1]} x{dados['quantidade']} | R$ {preco_total:.2f}")
 
-                # === 3. CÓDIGO PROD ===
+                # --- Código PROD ---
                 elif codigo.startswith("PROD"):
                     dados = parse_codigo_produto(codigo)
                     if not dados:
@@ -414,15 +413,22 @@ def processo_checkout(conexao):
                     if not produto:
                         print("Produto não encontrado.")
                         continue
-                    
-                    if produto["estoque"] == 0:
+
+                    # Aqui você tem que garantir que o estoque existe no lote
+                    # Como a tabela estoque sumiu, considere verificar lotes com estoque > 0
+                    cur.execute("""
+                        SELECT quantidade FROM lotes WHERE id_produto = %s AND validade = %s
+                    """, (produto["id"], dados["validade"]))
+                    estoque_lote = cur.fetchone()
+                    if not estoque_lote or estoque_lote[0] <= 0:
                         print(f"Produto '{produto['nome']}' sem estoque.")
                         continue
 
                     cur.execute("""
-                        INSERT INTO itens_transacionados (id_transacao, id_produto_empresa, quantidade, preco)
-                        VALUES (%s, %s, 1, %s)
-                    """, (trans_id, produto["id"], produto["preco"]))
+                        INSERT INTO transacoes (tipo_transacao, id_produto_empresa, quantidade, preco)
+                        VALUES ('checkout_produtos', %s, 1, %s)
+                    """, (produto["id"], produto["preco"]))
+
                     produtos_vendidos.append((produto["id"], 1, produto["validade"]))
 
                     chave = (produto["nome"], "Produto", produto["validade"])
@@ -430,18 +436,20 @@ def processo_checkout(conexao):
                         resumo_compras[chave][2] += 1
                     else:
                         resumo_compras[chave] = [produto["preco"], 1, 1]
+
                     total += produto["preco"]
                     print(f"[PRODUTO] {produto['nome']} | R$ {produto['preco']:.2f}")
 
                 else:
                     print("Formato de código inválido.")
 
-            # Atualiza estoque
+            # Atualiza quantidade em lotes para refletir a saída
             for id_produto_empresa, quantidade, validade in produtos_vendidos:
                 cur.execute("""
                     UPDATE lotes SET quantidade = quantidade - %s 
                     WHERE id_produto = %s AND validade = %s
                 """, (quantidade, id_produto_empresa, validade))
+
             conexao.commit()
 
     except Exception as e:
