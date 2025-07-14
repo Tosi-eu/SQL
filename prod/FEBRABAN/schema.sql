@@ -17,12 +17,12 @@ CREATE TABLE produtos (
 
 CREATE TABLE produto_empresa (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    codigo VARCHAR(13) UNIQUE,
+    codigo VARCHAR(13) UNIQUE NOT NULL,
     id_produto INT NOT NULL,
     id_empresa INT NOT NULL,
     id_segmento INT NOT NULL,
     preco DECIMAL(10, 2) NOT NULL,
-    UNIQUE (id_produt o, id_empresa),
+    UNIQUE (id_produto, id_empresa),
     FOREIGN KEY (id_produto) REFERENCES produtos(id) ON DELETE CASCADE,
     FOREIGN KEY (id_empresa) REFERENCES fornecedores(id) ON DELETE CASCADE,
     FOREIGN KEY (id_segmento) REFERENCES segmentos(id)
@@ -41,12 +41,7 @@ CREATE TABLE lotes (
 CREATE TABLE transacoes (
     id INT AUTO_INCREMENT PRIMARY KEY,
     tipo_transacao ENUM('checkout_produtos', 'recebimento_lote') NOT NULL,
-    data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE itens_transacionados (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    id_transacao INT NOT NULL,
+    data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     id_produto_empresa INT NOT NULL,
     quantidade INT NOT NULL,
     preco DECIMAL(10, 2) NOT NULL,
